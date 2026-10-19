@@ -1,0 +1,125 @@
+===== Grading report for add.c =====
+Problem: add_two_integers
+Overall grade: 77.8 / 100
+
+Metric         Weight     Score  Verdict
+correctness        20   16.0/20  8/10 tests pass. First failure: test 07
+                                 (wrong answer).
+syntax             10    9.0/10  1 warning(s): line 4: ignoring return value
+                                 of 'scanf' declared with attribute
+                                 'warn_unused_result' [-Wunused-result]
+structure          10     10/10  1 function(s), all within complexity 8 and
+                                 length 40; no static-analysis findings.
+modularity         10      3/10  Only main() is defined; all logic lives in
+                                 one function.
+logical            10    7.2/10  Fails on: int_overflow, random_stress.
+complexity         10     10/10  O(1) confirmed (required O(1)).
+memory_safety      10    7.5/10  1 issue(s): signed-integer-overflow at
+                                 add.c:5
+readability        10      5/10  5/10 -- Uses single-letter variable names (a,
+                                 b); No comments to explain the code
+originality        10     10/10  Not judged: only 6 distinctive fingerprints
+                                 (minimum 8); the code is almost all the shape
+                                 every solution shares. Closest:
+                                 known/llm_qwen2.5-7b_1.c (1.00).
+
+--- Where you failed ---
+test 07  (correctness, wrong answer)
+  INPUT:    2147483647 1
+  EXPECTED: 2147483648
+  GOT:      -2147483648
+  WHY:      Integer overflow: signed integer overflow: 2147483647 + 1 cannot
+            be represented in type 'int'. The result does not fit in a 32-bit
+            int, which is undefined behaviour in C.
+  FIX:      Use a wider type (long long) for values that can exceed the int
+            range, or check the operands before the operation.
+  ALSO:     same problem on test 10, edge case 'random_stress' (random, size
+            2147483647, seed 7#16)
+
+--- Memory / undefined-behaviour findings ---
+- add.c:5: runtime error: signed integer overflow: 2147483647 + 1 cannot be
+    represented in type 'int' [ubsan]
+    triggered by input: '2147483647 1\n'
+
+--- Suggestions to raise the grade (biggest gains first) ---
+- Move the computation into its own function (e.g. a helper that takes the
+  inputs and returns the result) and call it from main(). [modularity]
+- Use descriptive names for variables [readability]
+- Add a comment explaining what the program does [readability]
+- Indent consistently with spaces [readability]
+- Use a wider type (long long) for values that can exceed the int range, or
+  check the operands before the operation. [correctness]
+- add.c:5: A signed int calculation overflows (undefined behaviour); use long
+  long or check the range first. [memory_safety]
+- Fix the warning at line 4: ignoring return value of 'scanf' declared with
+  attribute 'warn_unused_result' [-Wunused-result] [syntax]
+
+--- Usefulness & limitations of this evaluation ---
+Useful for:
+  1. Grading a large programming lab
+     Example: A 300-student CS1 lab submits max_subarray.c. The agent grades
+     every submission unattended in the Docker image, and each report contains
+     the exact failing input with the expected output, e.g. '3 / -5 -2 -9 ->
+     expected -2, got 0: best value initialised to 0'.
+     Benefit: Every student is judged by the same rules; TAs spend office
+     hours on misconceptions instead of running code. A regrade request is
+     settled by re-running and comparing the report fingerprint.
+  2. Coding-interview and hiring screens
+     Example: A company runs 500 candidate submissions for an 'add two
+     integers safely' task. The agent ranks them by correctness, overflow
+     handling and memory safety and gives a per-metric score.
+     Benefit: Fast first-round filtering where every rejection can be
+     justified metric by metric.
+  3. Plagiarism and LLM-copy triage for instructors
+     Example: Two submissions reach a similarity of 0.93 against the 0.85
+     threshold, and a third is a 0.91 match to an answer the instructor
+     generated with an LLM in advance. Only these are flagged; the other 297
+     are not.
+     Benefit: The instructor reviews a handful of flagged pairs, with the
+     shared line ranges listed, instead of reading all 300.
+  4. Practice feedback before the deadline
+     Example: A student runs the agent on a draft that stores a sum in an int.
+     The report shows the input '3 / 1000000000 1000000000 1000000000', the
+     expected 3000000000, the wrapped value printed, and why: a 32-bit
+     overflow.
+     Benefit: Students learn to think about corner cases from concrete
+     counterexamples, without waiting for a TA.
+Limits of this report:
+  1. Tests cannot prove correctness
+     Example: A submission passes all 10 hidden tests and every edge-case
+     family, but crashes when n = 0 or when the input ends without a trailing
+     newline, because no test or generator produces that input. The agent
+     still reports 100% correctness.
+     Fix: Grow the edge-case families after each term; the reference-solution
+     comparison makes adding a probe a one-line change.
+  2. Complexity is measured, not proved
+     Example: A duplicate check with two nested loops that returns at the
+     first duplicate looks O(n) on random inputs (a duplicate appears early),
+     so the agent confirms an O(n) bound for an O(n^2) algorithm. In the other
+     direction, n log n and n differ by a factor that is hard to see over
+     1,000-16,000 elements, so a sort-based solution can be reported as O(n).
+     Fix: Give each problem a worst-case generator (e.g. all-distinct values)
+     and use sizes that span a large range.
+  3. Similarity is unreliable on tiny or canonical programs
+     Example: For add_two_integers, two honest students who both write
+     scanf/printf in main() produce nearly identical token streams, a false
+     plagiarism flag. Ignoring the reference solution's fingerprints and
+     refusing to judge short programs fixes that, but then a copied 6-line
+     program is never flagged (false negative). An LLM answer the student
+     restructures, e.g. loops rewritten as recursion, also drops below the
+     threshold.
+     Fix: Treat flags as requests for human review only; set 'flag_only' when
+     a problem is too small to judge.
+  4. The readability score is subjective and can be gamed
+     Example: Adding comments that only restate the code ('// add a and b')
+     can raise the comments criterion by a point with a small local model, and
+     a different model (qwen2.5:7b vs llama-3.3-70b) scores the same code
+     differently. The cache makes the score reproducible, not correct.
+     Fix: Keep readability's weight low, anchor the model with measured facts
+     (comment ratio, single-letter names), and spot-check a sample of scores
+     by hand.
+
+Report fingerprint: sha256:f9bb3530ab8fc71c57b4d772c8e9e952a147af9d4a3849ec82265d9f8b8e4359
+Rules: sha256:474204f08f31a3d8...  Assets: sha256:6b906fad5b8bd674...
+Tools: platform Linux-aarch64, python 3.12.3, valgrind 3.22.0, cppcheck 2.13.0, lizard 1.17.10
+Compiler: gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0

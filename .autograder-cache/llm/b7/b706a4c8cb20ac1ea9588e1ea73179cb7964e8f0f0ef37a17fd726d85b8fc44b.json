@@ -1,0 +1,72 @@
+{
+  "request": {
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
+    "temperature": 0.0,
+    "seed": 42,
+    "messages": [
+      {
+        "role": "system",
+        "content": "You grade the READABILITY of a student's C program in an introductory programming course.\nJudge only how easy the code is for a human to read and maintain -- NOT whether it is correct or fast.\n\nScore each criterion with an integer:\n- naming (0-3): 3 = descriptive names throughout; 2 = mostly clear; 1 = several cryptic names; 0 = mostly single letters or meaningless names. Loop counters i/j/k are acceptable.\n- comments (0-2): 2 = the program's purpose and every non-trivial function or block is explained; 1 = some useful comments; 0 = no useful comments. Comments that only restate the code do not count.\n- formatting (0-2): 2 = consistent indentation and spacing; 1 = minor inconsistencies; 0 = cramped or inconsistent layout.\n- clarity (0-3): 3 = straightforward logic, small focused functions, no magic numbers; 2 = mostly clear; 1 = hard to follow in places; 0 = convoluted.\n\nReply with JSON only: {\"naming\": int, \"comments\": int, \"formatting\": int, \"clarity\": int,\n\"reasons\": [up to 4 short strings, cite line numbers], \"suggestions\": [up to 3 short, concrete improvements]}"
+      },
+      {
+        "role": "user",
+        "content": "Measured facts (computed by a tool; trust them):\n{\"lines\": 18, \"code_lines\": 17, \"comment_lines\": 2, \"comment_ratio\": 0.12, \"identifiers\": [\"arr\", \"best\", \"cur\", \"i\", \"n\"], \"single_letter_identifiers\": [\"i\", \"n\"], \"avg_identifier_length\": 2.4, \"longest_line\": 74, \"lines_over_100_chars\": 0, \"mixed_tabs_and_spaces\": false}\n\nCode:\n  1| #include <stdio.h>\n  2| #include <stdlib.h>\n  3| \n  4| int main()\n  5| {\n  6|     int n;\n  7|     scanf(\"%d\", &n);\n  8|     long long *arr = (long long *)malloc(n * sizeof(long long));\n  9|     for (int i = 1; i <= n; i++)          /* 1-based loop writes arr[n] */\n 10|         scanf(\"%lld\", &arr[i]);\n 11|     long long best = arr[1], cur = 0;\n 12|     for (int i = 1; i <= n; i++) {\n 13|         cur = cur > 0 ? cur + arr[i] : arr[i];\n 14|         if (cur > best) best = cur;\n 15|     }\n 16|     printf(\"%lld\\n\", best);\n 17|     return 0;                             /* arr is never freed */\n 18| }"
+      }
+    ],
+    "schema": {
+      "type": "object",
+      "properties": {
+        "naming": {
+          "type": "integer"
+        },
+        "comments": {
+          "type": "integer"
+        },
+        "formatting": {
+          "type": "integer"
+        },
+        "clarity": {
+          "type": "integer"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggestions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "naming",
+        "comments",
+        "formatting",
+        "clarity",
+        "reasons",
+        "suggestions"
+      ]
+    }
+  },
+  "raw": "{\"naming\": 2, \"comments\": 0, \"formatting\": 2, \"clarity\": 1,\n\"reasons\": [\"Uses single-letter identifiers\", \"No comments explaining the logic\"], \"suggestions\": [\"Use descriptive names for variables like `bestSum` and `currentSum`.\", \"Add a comment to explain the purpose of the program at the beginning.\", \"Indent the code consistently, especially around loops and conditionals.\"]}",
+  "data": {
+    "naming": 2,
+    "comments": 0,
+    "formatting": 2,
+    "clarity": 1,
+    "reasons": [
+      "Uses single-letter identifiers",
+      "No comments explaining the logic"
+    ],
+    "suggestions": [
+      "Use descriptive names for variables like `bestSum` and `currentSum`.",
+      "Add a comment to explain the purpose of the program at the beginning.",
+      "Indent the code consistently, especially around loops and conditionals."
+    ]
+  },
+  "model_digest": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e"
+}

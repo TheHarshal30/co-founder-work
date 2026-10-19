@@ -1,0 +1,9 @@
+submission,grade,correctness,syntax,structure,modularity,logical,complexity,memory_safety,readability,originality,flags,fingerprint
+add.c,77.8,0.8,0.9,1.0,0.3,0.725,1.0,0.75,0.5,1.0,,f9bb3530ab8fc71c
+add_clean.c,88.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0.8,0.0,suspected_plagiarism,99b786300efe602c
+add_compile_error.c,27.0,0.0,0.0,1.0,0.3,0.0,0.0,0.0,0.4,1.0,compile_failed,11ca7819484fdb19
+add_copied.c,83.9,1.0,1.0,1.0,0.8857,1.0,1.0,1.0,0.5,0.0,suspected_plagiarism,5b6148db271ec4d2
+add_infinite_loop.c,39.0,0.0,1.0,1.0,0.3,0.0,0.0,0.0,0.6,1.0,suspected_infinite_loop,b6754c4b461f0ec5
+add_leaky.c,79.0,1.0,0.8,0.8,0.3,1.0,1.0,0.5,0.5,1.0,,28c4678a78aa593c
+add_llm.c,69.8,0.8,1.0,1.0,0.3,0.725,1.0,0.75,0.6,0.0,suspected_external_copy,7e4c34768e7ea183
+add_wrong_format.c,62.5,0.0,0.9,1.0,0.85,0.0,1.0,1.0,0.5,1.0,,48e0f16c35417e9c

@@ -1,0 +1,506 @@
+{
+  "submission": "s01_kadane.c",
+  "submission_sha256": "41d9b39900887b272d0fd6aa9fdb72989f577bbe67bbc211a53c4df9c385fccd",
+  "problem": "max_subarray",
+  "rules_hash": "sha256:77de558f313faf2c97733a7e9e54ce9fc683d515a7ded6abbb2acb576662ae3f",
+  "assets_hash": "sha256:16472fe8ede8495a609d86514af33c73cb3a0b983d14fc37aa3ed179bdea1468",
+  "grade": 93.0,
+  "grade_complete": true,
+  "partial": false,
+  "first_pass": {
+    "compiled": true,
+    "compile_warnings": 0,
+    "smoke_ok": true,
+    "smoke_status": "ok",
+    "suspected_infinite_loop": false,
+    "static_sanity": {
+      "has_main": true,
+      "reads_input": true,
+      "writes_output": true,
+      "has_return": true
+    },
+    "notes": []
+  },
+  "metrics": [
+    {
+      "name": "correctness",
+      "analyzer": "io_tests",
+      "weight": 0.25,
+      "status": "ok",
+      "score": 1.0,
+      "contribution": 25.0,
+      "feedback": "All 10 tests pass.",
+      "evidence": {
+        "tests_passed": 10,
+        "tests_total": 10,
+        "results": [
+          {
+            "test": "01",
+            "verdict": "pass"
+          },
+          {
+            "test": "02",
+            "verdict": "pass"
+          },
+          {
+            "test": "03",
+            "verdict": "pass"
+          },
+          {
+            "test": "04",
+            "verdict": "pass"
+          },
+          {
+            "test": "05",
+            "verdict": "pass"
+          },
+          {
+            "test": "06",
+            "verdict": "pass"
+          },
+          {
+            "test": "07",
+            "verdict": "pass"
+          },
+          {
+            "test": "08",
+            "verdict": "pass"
+          },
+          {
+            "test": "09_max_random",
+            "verdict": "pass"
+          },
+          {
+            "test": "10",
+            "verdict": "pass"
+          }
+        ],
+        "failing": []
+      }
+    },
+    {
+      "name": "syntax",
+      "analyzer": "compiler_warnings",
+      "weight": 0.05,
+      "status": "ok",
+      "score": 1.0,
+      "contribution": 5.0,
+      "feedback": "No compiler warnings.",
+      "evidence": {
+        "flags": "-Wall -Wextra -std=c11 -O2",
+        "warnings": [],
+        "errors": []
+      }
+    },
+    {
+      "name": "structure",
+      "analyzer": "static_analysis",
+      "weight": 0.05,
+      "status": "ok",
+      "score": 1.0,
+      "contribution": 5.0,
+      "feedback": "3 function(s), all within complexity 8 and length 40; no static-analysis findings.",
+      "evidence": {
+        "limits": {
+          "max_cyclomatic": 8,
+          "max_function_length": 40
+        },
+        "functions": [
+          {
+            "name": "extend_run",
+            "lines": "8-11",
+            "nloc": 4,
+            "cyclomatic": 2,
+            "parameters": 2
+          },
+          {
+            "name": "max_subarray_sum",
+            "lines": "14-30",
+            "nloc": 16,
+            "cyclomatic": 5,
+            "parameters": 1
+          },
+          {
+            "name": "main",
+            "lines": "32-39",
+            "nloc": 8,
+            "cyclomatic": 3,
+            "parameters": 1
+          }
+        ],
+        "mutable_globals": [],
+        "goto_lines": [],
+        "cppcheck": {
+          "counted": [],
+          "advisory": []
+        },
+        "deductions": []
+      }
+    },
+    {
+      "name": "modularity",
+      "analyzer": "function_split",
+      "weight": 0.05,
+      "status": "ok",
+      "score": 1.0,
+      "contribution": 5.0,
+      "feedback": "3 functions; main() delegates the work (29% of the code).",
+      "evidence": {
+        "functions_defined": 3,
+        "expected_min": 2,
+        "helpers_called": [
+          "extend_run",
+          "max_subarray_sum"
+        ],
+        "helpers_never_called": [],
+        "main_share_of_lines": 0.29
+      }
+    },
+    {
+      "name": "logical",
+      "analyzer": "edge_case_runner",
+      "weight": 0.15,
+      "status": "ok",
+      "score": 1.0,
+      "contribution": 15.0,
+      "feedback": "Handles every corner-case family tested (single_element, all_negative, all_zero, mixed, large_values, best_at_edges, random_stress).",
+      "evidence": {
+        "families": [
+          {
+            "family": "single_element",
+            "passed": 3,
+            "total": 3
+          },
+          {
+            "family": "all_negative",
+            "passed": 3,
+            "total": 3
+          },
+          {
+            "family": "all_zero",
+            "passed": 1,
+            "total": 1
+          },
+          {
+            "family": "mixed",
+            "passed": 3,
+            "total": 3
+          },
+          {
+            "family": "large_values",
+            "passed": 2,
+            "total": 2
+          },
+          {
+            "family": "best_at_edges",
+            "passed": 2,
+            "total": 2
+          },
+          {
+            "family": "random_stress",
+            "passed": 40,
+            "total": 40
+          }
+        ],
+        "failing": []
+      }
+    },
+    {
+      "name": "complexity",
+      "analyzer": "complexity_estimator",
+      "weight": 0.15,
+      "status": "ok",
+      "score": 1.0,
+      "contribution": 15.0,
+      "feedback": "O(n) confirmed (required O(n)).",
+      "evidence": {
+        "required": "O(n)",
+        "method": "instructions",
+        "deterministic": true,
+        "measurements": [
+          {
+            "n": 500,
+            "cost": 653616
+          },
+          {
+            "n": 1000,
+            "cost": 1206699
+          },
+          {
+            "n": 2000,
+            "cost": 2314593
+          },
+          {
+            "n": 4000,
+            "cost": 4532141
+          },
+          {
+            "n": 8000,
+            "cost": 8963891
+          }
+        ],
+        "estimated": "O(n)",
+        "fit_error": {
+          "O(1)": 0.85524,
+          "O(log n)": 0.307249,
+          "O(n)": 0.000147,
+          "O(n log n)": 0.028143,
+          "O(n^2)": 0.192848,
+          "O(n^3)": 0.287311
+        }
+      }
+    },
+    {
+      "name": "memory_safety",
+      "analyzer": "sanitizer_run",
+      "weight": 0.1,
+      "status": "ok",
+      "score": 1.0,
+      "contribution": 10.0,
+      "feedback": "No memory or undefined-behaviour errors on 20 inputs.",
+      "evidence": {
+        "inputs_checked": 20,
+        "sanitizers": "-fsanitize=address,undefined",
+        "valgrind": true,
+        "leak_detection": "lsan",
+        "issues": []
+      }
+    },
+    {
+      "name": "readability",
+      "analyzer": "llm_review",
+      "weight": 0.1,
+      "status": "ok",
+      "score": 0.8,
+      "contribution": 8.0,
+      "feedback": "8/10 -- Some function names could be more descriptive (line 7); Variable `run_sum` is not immediately clear without context (line 10)",
+      "evidence": {
+        "provider": "ollama",
+        "model": "qwen2.5:7b",
+        "model_digest": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e",
+        "temperature": 0.0,
+        "seed": 42,
+        "prompt_version": "readability-v1",
+        "criteria": {
+          "naming": 2,
+          "comments": 2,
+          "formatting": 2,
+          "clarity": 2
+        },
+        "facts": {
+          "lines": 39,
+          "code_lines": 29,
+          "comment_lines": 8,
+          "comment_ratio": 0.28,
+          "identifiers": [
+            "best",
+            "count",
+            "extend_run",
+            "i",
+            "max_subarray_sum",
+            "run_sum",
+            "value"
+          ],
+          "single_letter_identifiers": [
+            "i"
+          ],
+          "avg_identifier_length": 6.86,
+          "longest_line": 83,
+          "lines_over_100_chars": 0,
+          "mixed_tabs_and_spaces": false
+        },
+        "reasons": [
+          "Some function names could be more descriptive (line 7)",
+          "Variable `run_sum` is not immediately clear without context (line 10)",
+          "The logic in the main loop could use comments for clarity (lines 20-28)"
+        ],
+        "raw_response": "{\n    \"naming\": 2,\n    \"comments\": 2,\n    \"formatting\": 2,\n    \"clarity\": 2,\n    \"reasons\": [\n        \"Some function names could be more descriptive (line 7)\",\n        \"Variable `run_sum` is not immediately clear without context (line 10)\",\n        \"The logic in the main loop could use comments for clarity (lines 20-28)\"\n    ],\n    \"suggestions\": [\n        \"Use more descriptive function names like `calculate_max_subarray_sum`\",\n        \"Add a comment explaining what `run_sum` represents at its declaration\",\n        \"Break down the main loop into smaller, more focused functions\"\n    ]\n}"
+      }
+    },
+    {
+      "name": "originality",
+      "analyzer": "similarity_flag",
+      "weight": 0.05,
+      "status": "ok",
+      "score": 0.0,
+      "contribution": 0.0,
+      "feedback": "FLAGGED for review: highly similar to submissions/s06_copy.c (classmate, 1.00).",
+      "evidence": {
+        "method": "winnowing k=5 w=4, Dice overlap",
+        "threshold": 0.85,
+        "fingerprints": 34,
+        "ignored_reference_fingerprints": 33,
+        "compared_against": 9,
+        "top_matches": [
+          {
+            "file": "submissions/s06_copy.c",
+            "kind": "submission",
+            "source": "classmate",
+            "similarity": 1.0,
+            "shared_lines": "8, 10-11, 14-16, 18, 20-21, 23-25, 27, 29, 32, 36-37"
+          },
+          {
+            "file": "submissions/s02_zero_init.c",
+            "kind": "submission",
+            "source": "classmate",
+            "similarity": 0.323,
+            "shared_lines": "14, 27, 29, 32, 37"
+          },
+          {
+            "file": "submissions/s03_brute_force.c",
+            "kind": "submission",
+            "source": "classmate",
+            "similarity": 0.133,
+            "shared_lines": "14, 25, 29, 32"
+          }
+        ],
+        "max_similarity": 1.0
+      }
+    },
+    {
+      "name": "safe_io",
+      "analyzer": "source_patterns",
+      "weight": 0.05,
+      "status": "ok",
+      "score": 1.0,
+      "contribution": 5.0,
+      "feedback": "All 3 code rules satisfied.",
+      "evidence": {
+        "rules": [
+          {
+            "rule": "forbid",
+            "pattern": "\\bgets\\s*\\(",
+            "ok": true,
+            "lines": []
+          },
+          {
+            "rule": "forbid",
+            "pattern": "\\bsystem\\s*\\(",
+            "ok": true,
+            "lines": []
+          },
+          {
+            "rule": "require",
+            "pattern": "scanf\\s*\\([^;]*\\)\\s*(!=|==|<|>)",
+            "ok": true,
+            "lines": [
+              17,
+              23,
+              35
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "counterexamples": [],
+  "flags": [
+    {
+      "metric": "originality",
+      "type": "suspected_plagiarism",
+      "detail": "1.00 similar to submissions/s06_copy.c (classmate); shared lines 8, 10-11, 14-16, 18, 20-21, 23-25, 27, 29, 32, 36-37. Needs human review.",
+      "similarity": 1.0,
+      "match": "submissions/s06_copy.c"
+    }
+  ],
+  "suggestions": [
+    {
+      "metric": "originality",
+      "points_lost": 5.0,
+      "suggestion": "This code closely matches another submission or a known source and will be reviewed by the instructor. If you worked with someone or used a source, say so."
+    },
+    {
+      "metric": "readability",
+      "points_lost": 2.0,
+      "suggestion": "Use more descriptive function names like `calculate_max_subarray_sum`"
+    },
+    {
+      "metric": "readability",
+      "points_lost": 2.0,
+      "suggestion": "Add a comment explaining what `run_sum` represents at its declaration"
+    },
+    {
+      "metric": "readability",
+      "points_lost": 2.0,
+      "suggestion": "Break down the main loop into smaller, more focused functions"
+    }
+  ],
+  "tool_versions": {
+    "platform": "Linux-aarch64",
+    "python": "3.12.3",
+    "cc": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "valgrind": "3.22.0",
+    "cppcheck": "2.13.0",
+    "lizard": "1.17.10"
+  },
+  "usefulness_limitations": {
+    "usefulness": [
+      {
+        "use_case": "Grading a large programming lab",
+        "example": "A 300-student CS1 lab submits max_subarray.c. The agent grades every submission unattended in the Docker image, and each report contains the exact failing input with the expected output, e.g. '3 / -5 -2 -9 -> expected -2, got 0: best value initialised to 0'.",
+        "benefit": "Every student is judged by the same rules; TAs spend office hours on misconceptions instead of running code. A regrade request is settled by re-running and comparing the report fingerprint."
+      },
+      {
+        "use_case": "Coding-interview and hiring screens",
+        "example": "A company runs 500 candidate submissions for an 'add two integers safely' task. The agent ranks them by correctness, overflow handling and memory safety and gives a per-metric score.",
+        "benefit": "Fast first-round filtering where every rejection can be justified metric by metric."
+      },
+      {
+        "use_case": "Plagiarism and LLM-copy triage for instructors",
+        "example": "Two submissions reach a similarity of 0.93 against the 0.85 threshold, and a third is a 0.91 match to an answer the instructor generated with an LLM in advance. Only these are flagged; the other 297 are not.",
+        "benefit": "The instructor reviews a handful of flagged pairs, with the shared line ranges listed, instead of reading all 300."
+      },
+      {
+        "use_case": "Practice feedback before the deadline",
+        "example": "A student runs the agent on a draft that stores a sum in an int. The report shows the input '3 / 1000000000 1000000000 1000000000', the expected 3000000000, the wrapped value printed, and why: a 32-bit overflow.",
+        "benefit": "Students learn to think about corner cases from concrete counterexamples, without waiting for a TA."
+      }
+    ],
+    "limitations": [
+      {
+        "limitation": "Tests cannot prove correctness",
+        "example": "A submission passes all 10 hidden tests and every edge-case family, but crashes when n = 0 or when the input ends without a trailing newline, because no test or generator produces that input. The agent still reports 100% correctness.",
+        "mitigation": "Grow the edge-case families after each term; the reference-solution comparison makes adding a probe a one-line change."
+      },
+      {
+        "limitation": "Complexity is measured, not proved",
+        "example": "A duplicate check with two nested loops that returns at the first duplicate looks O(n) on random inputs (a duplicate appears early), so the agent confirms an O(n) bound for an O(n^2) algorithm. In the other direction, n log n and n differ by a factor that is hard to see over 1,000-16,000 elements, so a sort-based solution can be reported as O(n).",
+        "mitigation": "Give each problem a worst-case generator (e.g. all-distinct values) and use sizes that span a large range."
+      },
+      {
+        "limitation": "Similarity is unreliable on tiny or canonical programs",
+        "example": "For add_two_integers, two honest students who both write scanf/printf in main() produce nearly identical token streams, a false plagiarism flag. Ignoring the reference solution's fingerprints and refusing to judge short programs fixes that, but then a copied 6-line program is never flagged (false negative). An LLM answer the student restructures, e.g. loops rewritten as recursion, also drops below the threshold.",
+        "mitigation": "Treat flags as requests for human review only; set 'flag_only' when a problem is too small to judge."
+      },
+      {
+        "limitation": "The readability score is subjective and can be gamed",
+        "example": "Adding comments that only restate the code ('// add a and b') can raise the comments criterion by a point with a small local model, and a different model (qwen2.5:7b vs llama-3.3-70b) scores the same code differently. The cache makes the score reproducible, not correct.",
+        "mitigation": "Keep readability's weight low, anchor the model with measured facts (comment ratio, single-letter names), and spot-check a sample of scores by hand."
+      }
+    ]
+  },
+  "fingerprint": "sha256:dbe7f8749d287216b0526628b6f2c33c173bf0d4f079dc5ecd9f136597eadff1",
+  "meta": {
+    "report_version": 1,
+    "generated_at": "2026-10-19T13:26:03Z",
+    "elapsed_s": 0.76,
+    "timings_s": {
+      "first_pass": 0.021,
+      "readability": 0.001,
+      "modularity": 0.014,
+      "safe_io": 0.0,
+      "syntax": 0.017,
+      "structure": 0.019,
+      "originality": 0.019,
+      "correctness": 0.132,
+      "logical": 0.188,
+      "complexity": 0.599,
+      "memory_safety": 0.727
+    },
+    "llm_cache": {
+      "hits": 1,
+      "misses": 0
+    },
+    "memory_limit_enforced": true
+  }
+}

@@ -1,0 +1,447 @@
+{
+  "submission": "add_copied.c",
+  "submission_sha256": "01913c91be70f6c63b73ba6abff685688f39ded690ca8290974700e2ca333345",
+  "problem": "add_two_integers",
+  "rules_hash": "sha256:474204f08f31a3d865baa78a39d51909343822153fb3c099800f7a8eaac4f001",
+  "assets_hash": "sha256:6b906fad5b8bd674d4ab36121d1b6e5a630e2d4b0cfa72eb49e2d1f288ea1752",
+  "grade": 83.9,
+  "grade_complete": true,
+  "partial": false,
+  "first_pass": {
+    "compiled": true,
+    "compile_warnings": 0,
+    "smoke_ok": true,
+    "smoke_status": "ok",
+    "suspected_infinite_loop": false,
+    "static_sanity": {
+      "has_main": true,
+      "reads_input": true,
+      "writes_output": true,
+      "has_return": true
+    },
+    "notes": []
+  },
+  "metrics": [
+    {
+      "name": "correctness",
+      "analyzer": "io_tests",
+      "weight": 0.2,
+      "status": "ok",
+      "score": 1.0,
+      "contribution": 20.0,
+      "feedback": "All 10 tests pass.",
+      "evidence": {
+        "tests_passed": 10,
+        "tests_total": 10,
+        "results": [
+          {
+            "test": "01",
+            "verdict": "pass"
+          },
+          {
+            "test": "02",
+            "verdict": "pass"
+          },
+          {
+            "test": "03",
+            "verdict": "pass"
+          },
+          {
+            "test": "04",
+            "verdict": "pass"
+          },
+          {
+            "test": "05",
+            "verdict": "pass"
+          },
+          {
+            "test": "06",
+            "verdict": "pass"
+          },
+          {
+            "test": "07",
+            "verdict": "pass"
+          },
+          {
+            "test": "08",
+            "verdict": "pass"
+          },
+          {
+            "test": "09",
+            "verdict": "pass"
+          },
+          {
+            "test": "10",
+            "verdict": "pass"
+          }
+        ],
+        "failing": []
+      }
+    },
+    {
+      "name": "syntax",
+      "analyzer": "compiler_warnings",
+      "weight": 0.1,
+      "status": "ok",
+      "score": 1.0,
+      "contribution": 10.0,
+      "feedback": "No compiler warnings.",
+      "evidence": {
+        "flags": "-Wall -Wextra -Werror -std=c11 -O2",
+        "warnings": [],
+        "errors": []
+      }
+    },
+    {
+      "name": "structure",
+      "analyzer": "static_analysis",
+      "weight": 0.1,
+      "status": "ok",
+      "score": 1.0,
+      "contribution": 10.0,
+      "feedback": "2 function(s), all within complexity 8 and length 40; no static-analysis findings.",
+      "evidence": {
+        "limits": {
+          "max_cyclomatic": 8,
+          "max_function_length": 40
+        },
+        "functions": [
+          {
+            "name": "plus",
+            "lines": "2-2",
+            "nloc": 1,
+            "cyclomatic": 1,
+            "parameters": 2
+          },
+          {
+            "name": "main",
+            "lines": "3-8",
+            "nloc": 6,
+            "cyclomatic": 2,
+            "parameters": 1
+          }
+        ],
+        "mutable_globals": [],
+        "goto_lines": [],
+        "cppcheck": {
+          "counted": [],
+          "advisory": []
+        },
+        "deductions": []
+      }
+    },
+    {
+      "name": "modularity",
+      "analyzer": "function_split",
+      "weight": 0.1,
+      "status": "ok",
+      "score": 0.8857,
+      "contribution": 8.86,
+      "feedback": "main() still holds 86% of the code.",
+      "evidence": {
+        "functions_defined": 2,
+        "expected_min": 2,
+        "helpers_called": [
+          "plus"
+        ],
+        "helpers_never_called": [],
+        "main_share_of_lines": 0.86
+      }
+    },
+    {
+      "name": "logical",
+      "analyzer": "edge_case_runner",
+      "weight": 0.1,
+      "status": "ok",
+      "score": 1.0,
+      "contribution": 10.0,
+      "feedback": "Handles every corner-case family tested (negatives, zero, int_overflow, random_stress).",
+      "evidence": {
+        "families": [
+          {
+            "family": "negatives",
+            "passed": 3,
+            "total": 3
+          },
+          {
+            "family": "zero",
+            "passed": 3,
+            "total": 3
+          },
+          {
+            "family": "int_overflow",
+            "passed": 4,
+            "total": 4
+          },
+          {
+            "family": "random_stress",
+            "passed": 20,
+            "total": 20
+          }
+        ],
+        "failing": []
+      }
+    },
+    {
+      "name": "complexity",
+      "analyzer": "complexity_estimator",
+      "weight": 0.1,
+      "status": "ok",
+      "score": 1.0,
+      "contribution": 10.0,
+      "feedback": "O(1) confirmed (required O(1)).",
+      "evidence": {
+        "required": "O(1)",
+        "method": "instructions",
+        "deterministic": true,
+        "measurements": [
+          {
+            "n": 1,
+            "cost": 100326
+          },
+          {
+            "n": 10,
+            "cost": 100349
+          },
+          {
+            "n": 100,
+            "cost": 100510
+          }
+        ],
+        "estimated": "O(1)",
+        "fit_error": {
+          "O(1)": 0.000815,
+          "O(log n)": 0.000324,
+          "O(n)": 2.7e-05,
+          "O(n log n)": 5.7e-05,
+          "O(n^2)": 8.7e-05,
+          "O(n^3)": 9.3e-05,
+          "O(2^n)": 9.4e-05
+        }
+      }
+    },
+    {
+      "name": "memory_safety",
+      "analyzer": "sanitizer_run",
+      "weight": 0.1,
+      "status": "ok",
+      "score": 1.0,
+      "contribution": 10.0,
+      "feedback": "No memory or undefined-behaviour errors on 23 inputs.",
+      "evidence": {
+        "inputs_checked": 23,
+        "sanitizers": "-fsanitize=address,undefined",
+        "valgrind": true,
+        "leak_detection": "lsan",
+        "issues": []
+      }
+    },
+    {
+      "name": "readability",
+      "analyzer": "llm_review",
+      "weight": 0.1,
+      "status": "ok",
+      "score": 0.5,
+      "contribution": 5.0,
+      "feedback": "5/10 -- Cryptic variable names (p, q); ",
+      "evidence": {
+        "provider": "ollama",
+        "model": "qwen2.5:7b",
+        "model_digest": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e",
+        "temperature": 0.0,
+        "seed": 42,
+        "prompt_version": "readability-v1",
+        "criteria": {
+          "naming": 1,
+          "comments": 0,
+          "formatting": 2,
+          "clarity": 2
+        },
+        "facts": {
+          "lines": 8,
+          "code_lines": 8,
+          "comment_lines": 0,
+          "comment_ratio": 0.0,
+          "identifiers": [
+            "p",
+            "plus",
+            "q",
+            "u",
+            "v"
+          ],
+          "single_letter_identifiers": [
+            "p",
+            "q",
+            "u",
+            "v"
+          ],
+          "avg_identifier_length": 1.6,
+          "longest_line": 84,
+          "lines_over_100_chars": 0,
+          "mixed_tabs_and_spaces": false
+        },
+        "reasons": [
+          "Cryptic variable names (p, q)",
+          "",
+          "",
+          ""
+        ],
+        "raw_response": "{\"naming\": 1, \"comments\": 0, \"formatting\": 2, \"clarity\": 2,\n\"reasons\": [\"Cryptic variable names (p, q)\", \"\", \"\", \"\"], \"suggestions\": [\"Use descriptive names for variables like `u` and `v`.\", \"Add comments to explain the purpose of the program and functions.\", \"Indent consistently; lines 5-7 are slightly misaligned.\", \"Consider breaking down the logic into smaller, more focused functions.\"]}"
+      }
+    },
+    {
+      "name": "originality",
+      "analyzer": "similarity_flag",
+      "weight": 0.1,
+      "status": "ok",
+      "score": 0.0,
+      "contribution": 0.0,
+      "feedback": "FLAGGED for review: highly similar to submissions/add_clean.c (classmate, 1.00).",
+      "evidence": {
+        "method": "winnowing k=5 w=4, Dice overlap",
+        "threshold": 0.85,
+        "fingerprints": 22,
+        "ignored_reference_fingerprints": 13,
+        "compared_against": 10,
+        "top_matches": [
+          {
+            "file": "submissions/add_clean.c",
+            "kind": "submission",
+            "source": "classmate",
+            "similarity": 1.0,
+            "shared_lines": "2-6"
+          },
+          {
+            "file": "submissions/add_wrong_format.c",
+            "kind": "submission",
+            "source": "classmate",
+            "similarity": 0.615,
+            "shared_lines": "2-3, 6"
+          },
+          {
+            "file": "known/llm_qwen2.5-7b_2.c",
+            "kind": "known",
+            "source": "LLM-generated (qwen2.5:7b)",
+            "similarity": 0.235,
+            "shared_lines": "5"
+          }
+        ],
+        "max_similarity": 1.0
+      }
+    }
+  ],
+  "counterexamples": [],
+  "flags": [
+    {
+      "metric": "originality",
+      "type": "suspected_plagiarism",
+      "detail": "1.00 similar to submissions/add_clean.c (classmate); shared lines 2-6. Needs human review.",
+      "similarity": 1.0,
+      "match": "submissions/add_clean.c"
+    }
+  ],
+  "suggestions": [
+    {
+      "metric": "originality",
+      "points_lost": 10.0,
+      "suggestion": "This code closely matches another submission or a known source and will be reviewed by the instructor. If you worked with someone or used a source, say so."
+    },
+    {
+      "metric": "readability",
+      "points_lost": 5.0,
+      "suggestion": "Use descriptive names for variables like `u` and `v`."
+    },
+    {
+      "metric": "readability",
+      "points_lost": 5.0,
+      "suggestion": "Add comments to explain the purpose of the program and functions."
+    },
+    {
+      "metric": "readability",
+      "points_lost": 5.0,
+      "suggestion": "Indent consistently; lines 5-7 are slightly misaligned."
+    },
+    {
+      "metric": "modularity",
+      "points_lost": 1.14,
+      "suggestion": "Keep main() short: read input, call helpers, print the result."
+    }
+  ],
+  "tool_versions": {
+    "platform": "Linux-aarch64",
+    "python": "3.12.3",
+    "cc": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "valgrind": "3.22.0",
+    "cppcheck": "2.13.0",
+    "lizard": "1.17.10"
+  },
+  "usefulness_limitations": {
+    "usefulness": [
+      {
+        "use_case": "Grading a large programming lab",
+        "example": "A 300-student CS1 lab submits max_subarray.c. The agent grades every submission unattended in the Docker image, and each report contains the exact failing input with the expected output, e.g. '3 / -5 -2 -9 -> expected -2, got 0: best value initialised to 0'.",
+        "benefit": "Every student is judged by the same rules; TAs spend office hours on misconceptions instead of running code. A regrade request is settled by re-running and comparing the report fingerprint."
+      },
+      {
+        "use_case": "Coding-interview and hiring screens",
+        "example": "A company runs 500 candidate submissions for an 'add two integers safely' task. The agent ranks them by correctness, overflow handling and memory safety and gives a per-metric score.",
+        "benefit": "Fast first-round filtering where every rejection can be justified metric by metric."
+      },
+      {
+        "use_case": "Plagiarism and LLM-copy triage for instructors",
+        "example": "Two submissions reach a similarity of 0.93 against the 0.85 threshold, and a third is a 0.91 match to an answer the instructor generated with an LLM in advance. Only these are flagged; the other 297 are not.",
+        "benefit": "The instructor reviews a handful of flagged pairs, with the shared line ranges listed, instead of reading all 300."
+      },
+      {
+        "use_case": "Practice feedback before the deadline",
+        "example": "A student runs the agent on a draft that stores a sum in an int. The report shows the input '3 / 1000000000 1000000000 1000000000', the expected 3000000000, the wrapped value printed, and why: a 32-bit overflow.",
+        "benefit": "Students learn to think about corner cases from concrete counterexamples, without waiting for a TA."
+      }
+    ],
+    "limitations": [
+      {
+        "limitation": "Tests cannot prove correctness",
+        "example": "A submission passes all 10 hidden tests and every edge-case family, but crashes when n = 0 or when the input ends without a trailing newline, because no test or generator produces that input. The agent still reports 100% correctness.",
+        "mitigation": "Grow the edge-case families after each term; the reference-solution comparison makes adding a probe a one-line change."
+      },
+      {
+        "limitation": "Complexity is measured, not proved",
+        "example": "A duplicate check with two nested loops that returns at the first duplicate looks O(n) on random inputs (a duplicate appears early), so the agent confirms an O(n) bound for an O(n^2) algorithm. In the other direction, n log n and n differ by a factor that is hard to see over 1,000-16,000 elements, so a sort-based solution can be reported as O(n).",
+        "mitigation": "Give each problem a worst-case generator (e.g. all-distinct values) and use sizes that span a large range."
+      },
+      {
+        "limitation": "Similarity is unreliable on tiny or canonical programs",
+        "example": "For add_two_integers, two honest students who both write scanf/printf in main() produce nearly identical token streams, a false plagiarism flag. Ignoring the reference solution's fingerprints and refusing to judge short programs fixes that, but then a copied 6-line program is never flagged (false negative). An LLM answer the student restructures, e.g. loops rewritten as recursion, also drops below the threshold.",
+        "mitigation": "Treat flags as requests for human review only; set 'flag_only' when a problem is too small to judge."
+      },
+      {
+        "limitation": "The readability score is subjective and can be gamed",
+        "example": "Adding comments that only restate the code ('// add a and b') can raise the comments criterion by a point with a small local model, and a different model (qwen2.5:7b vs llama-3.3-70b) scores the same code differently. The cache makes the score reproducible, not correct.",
+        "mitigation": "Keep readability's weight low, anchor the model with measured facts (comment ratio, single-letter names), and spot-check a sample of scores by hand."
+      }
+    ]
+  },
+  "fingerprint": "sha256:5b6148db271ec4d230244b4be47822f2c5ff63efaebf12b7ecb7073c04faeaab",
+  "meta": {
+    "report_version": 1,
+    "generated_at": "2026-10-19T13:25:56Z",
+    "elapsed_s": 0.69,
+    "timings_s": {
+      "first_pass": 0.018,
+      "modularity": 0.0,
+      "readability": 0.002,
+      "structure": 0.01,
+      "syntax": 0.015,
+      "originality": 0.014,
+      "correctness": 0.028,
+      "logical": 0.04,
+      "complexity": 0.332,
+      "memory_safety": 0.66
+    },
+    "llm_cache": {
+      "hits": 1,
+      "misses": 0
+    },
+    "memory_limit_enforced": true
+  }
+}

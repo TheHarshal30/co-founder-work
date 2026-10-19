@@ -1,0 +1,7 @@
+.venv
+.git
+.context
+.autograder-cache
+reports
+sample_outputs
+**/__pycache__

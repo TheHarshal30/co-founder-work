@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autograder"
+version = "0.1.0"
+description = "Rule-driven, reproducible grading agent for C programs"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["lizard==1.17.10"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+autograder = "autograder.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["autograder*"]
+
+[tool.setuptools.package-data]
+autograder = ["data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

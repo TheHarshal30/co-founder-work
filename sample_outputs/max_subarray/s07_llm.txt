@@ -1,0 +1,170 @@
+===== Grading report for s07_llm.c =====
+Problem: max_subarray
+Overall grade: 75.8 / 100
+
+Metric         Weight     Score  Verdict
+correctness        25   17.5/25  7/10 tests pass. First failure: test 08
+                                 (wrong answer).
+syntax              5       3/5  2 warning(s): lines 28, 33: ignoring return
+                                 value of 'scanf' declared with attribute
+                                 'warn_unused_result' [-Wunused-result]
+structure           5       5/5  2 function(s), all within complexity 8 and
+                                 length 40; no static-analysis findings.
+modularity          5       5/5  2 functions; main() delegates the work (43%
+                                 of the code).
+logical            15   12.5/15  Fails on: large_values, random_stress.
+complexity         15     15/15  O(n) confirmed (required O(n)).
+memory_safety      10    7.5/10  1 issue(s): signed-integer-overflow at
+                                 s07_llm.c:10
+readability        10    7.0/10  7/10 -- Use of 'best' and 'here' in function
+                                 names; No comments explaining the main
+                                 function or array reading logic
+originality         5       0/5  FLAGGED for review: highly similar to
+                                 known/llm_qwen2.5-7b_3.c (LLM-generated
+                                 (qwen2.5:7b), 1.00).
+safe_io             5     3.3/5  1 code rule(s) violated: check scanf's return
+                                 value so malformed input is detected
+
+--- Flags ---
+- [suspected_external_copy] 1.00 similar to known/llm_qwen2.5-7b_3.c (LLM-
+  generated (qwen2.5:7b)); shared lines 4-5, 8, 10, 13-14, 18-19, 23-24,
+  26-28, 31-33, 37. Needs human review.
+
+--- Where you failed ---
+test 08  (correctness, wrong answer)
+  INPUT:    1000
+            967915701 962042829 958995581 945705552 971987885 925180380
+            931640243 990812373 944261296 958939135 984775107 947322128
+            955282663 911841050 934360049 938783319 974946258 969637783
+            950587347 948913654 982745079 933487886 947273718 997576901
+            999743538 976566500 966203228 932935284 980459657 93197 ... [10005
+            bytes total]
+  EXPECTED: 951144825913
+  GOT:      1993529230
+  WHY:      Integer overflow: signed integer overflow: 958995581 + 1929958530
+            cannot be represented in type 'int'. The result does not fit in a
+            32-bit int, which is undefined behaviour in C.
+  FIX:      Use a wider type (long long) for values that can exceed the int
+            range, or check the operands before the operation.
+  ALSO:     same problem on test 09_max_random, test 10
+
+edge case 'large_values'  (logical, wrong answer)
+  INPUT:    3
+            1000000000 1000000000 1000000000
+  EXPECTED: 3000000000
+  GOT:      2000000000
+  WHY:      The code fails because the sum of two large positive integers
+            exceeds the maximum value that can be stored in a signed 32-bit
+            integer (INT_MAX). This overflow occurs on line 10 when adding the
+            elements to 'here'.
+  FIX:      Use an unsigned int for 'here' or ensure the input constraints are
+            handled with larger data types.
+
+edge case 'random_stress' (random, size 50, seed 2024#33)  (logical, wrong answer)
+  INPUT:    50
+            569174769 323508587 950437744 -947183680 324958691 856637804
+            120882586 937765986 345311842 499395336 -603007603 463896995
+            -948438584 532197770 821741161 175872291 -655611981 629531721
+            339297706 -218987698 -152938925 -496895204 -688928940 -988336138
+            197114972 -703698503 726307463 -13156393 -524226 ... [522 bytes
+            total]
+  EXPECTED: 4736369141
+  GOT:      2077533915
+  WHY:      The code fails due to integer overflow on line 18 when the sum of
+            subarray elements exceeds the maximum value that can be stored in
+            a 32-bit signed integer. The fix is needed because the sum can
+            grow large enough to cause an overflow, leading to incorrect
+            results.
+  FIX:      Use a larger data type like `long long` for the variable `here`.
+
+--- Memory / undefined-behaviour findings ---
+- s07_llm.c:10: runtime error: signed integer overflow: 958995581 + 1929958530
+    cannot be represented in type 'int' [ubsan]
+    triggered by input: '1000\n967915701 962042829 958995581 945705552
+    971987885 925180380 931640243 990812373 944261296 958939135 984775107
+    94732 ... [10005 bytes total]'
+
+--- Suggestions to raise the grade (biggest gains first) ---
+- Use a wider type (long long) for values that can exceed the int range, or
+  check the operands before the operation. [correctness]
+- This code closely matches another submission or a known source and will be
+  reviewed by the instructor. If you worked with someone or used a source, say
+  so. [originality]
+- Rename `best` to something like `maxSubarraySum` for clarity [readability]
+- Add a comment explaining what the `main` function does [readability]
+- Ensure consistent spacing around operators and after commas [readability]
+- s07_llm.c:10: A signed int calculation overflows (undefined behaviour); use
+  long long or check the range first. [memory_safety]
+- Fix the warning at lines 28, 33: ignoring return value of 'scanf' declared
+  with attribute 'warn_unused_result' [-Wunused-result] [syntax]
+- check scanf's return value so malformed input is detected [safe_io]
+
+--- Usefulness & limitations of this evaluation ---
+Useful for:
+  1. Grading a large programming lab
+     Example: A 300-student CS1 lab submits max_subarray.c. The agent grades
+     every submission unattended in the Docker image, and each report contains
+     the exact failing input with the expected output, e.g. '3 / -5 -2 -9 ->
+     expected -2, got 0: best value initialised to 0'.
+     Benefit: Every student is judged by the same rules; TAs spend office
+     hours on misconceptions instead of running code. A regrade request is
+     settled by re-running and comparing the report fingerprint.
+  2. Coding-interview and hiring screens
+     Example: A company runs 500 candidate submissions for an 'add two
+     integers safely' task. The agent ranks them by correctness, overflow
+     handling and memory safety and gives a per-metric score.
+     Benefit: Fast first-round filtering where every rejection can be
+     justified metric by metric.
+  3. Plagiarism and LLM-copy triage for instructors
+     Example: Two submissions reach a similarity of 0.93 against the 0.85
+     threshold, and a third is a 0.91 match to an answer the instructor
+     generated with an LLM in advance. Only these are flagged; the other 297
+     are not.
+     Benefit: The instructor reviews a handful of flagged pairs, with the
+     shared line ranges listed, instead of reading all 300.
+  4. Practice feedback before the deadline
+     Example: A student runs the agent on a draft that stores a sum in an int.
+     The report shows the input '3 / 1000000000 1000000000 1000000000', the
+     expected 3000000000, the wrapped value printed, and why: a 32-bit
+     overflow.
+     Benefit: Students learn to think about corner cases from concrete
+     counterexamples, without waiting for a TA.
+Limits of this report:
+  1. Tests cannot prove correctness
+     Example: A submission passes all 10 hidden tests and every edge-case
+     family, but crashes when n = 0 or when the input ends without a trailing
+     newline, because no test or generator produces that input. The agent
+     still reports 100% correctness.
+     Fix: Grow the edge-case families after each term; the reference-solution
+     comparison makes adding a probe a one-line change.
+  2. Complexity is measured, not proved
+     Example: A duplicate check with two nested loops that returns at the
+     first duplicate looks O(n) on random inputs (a duplicate appears early),
+     so the agent confirms an O(n) bound for an O(n^2) algorithm. In the other
+     direction, n log n and n differ by a factor that is hard to see over
+     1,000-16,000 elements, so a sort-based solution can be reported as O(n).
+     Fix: Give each problem a worst-case generator (e.g. all-distinct values)
+     and use sizes that span a large range.
+  3. Similarity is unreliable on tiny or canonical programs
+     Example: For add_two_integers, two honest students who both write
+     scanf/printf in main() produce nearly identical token streams, a false
+     plagiarism flag. Ignoring the reference solution's fingerprints and
+     refusing to judge short programs fixes that, but then a copied 6-line
+     program is never flagged (false negative). An LLM answer the student
+     restructures, e.g. loops rewritten as recursion, also drops below the
+     threshold.
+     Fix: Treat flags as requests for human review only; set 'flag_only' when
+     a problem is too small to judge.
+  4. The readability score is subjective and can be gamed
+     Example: Adding comments that only restate the code ('// add a and b')
+     can raise the comments criterion by a point with a small local model, and
+     a different model (qwen2.5:7b vs llama-3.3-70b) scores the same code
+     differently. The cache makes the score reproducible, not correct.
+     Fix: Keep readability's weight low, anchor the model with measured facts
+     (comment ratio, single-letter names), and spot-check a sample of scores
+     by hand.
+
+Report fingerprint: sha256:fa3d130457df9f9ee564178755c90c7f1eba97812b48caad07793024579723b8
+Rules: sha256:77de558f313faf2c...  Assets: sha256:16472fe8ede8495a...
+Tools: platform Linux-aarch64, python 3.12.3, valgrind 3.22.0, cppcheck 2.13.0, lizard 1.17.10
+Compiler: gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0

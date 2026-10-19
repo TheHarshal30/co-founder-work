@@ -1,0 +1,8 @@
+{
+  "_comment": "Corner-case families for edge_case_runner. Expected outputs are computed by reference.c.",
+  "negatives": ["-3 -4\n", "-10 4\n", "5 -9\n"],
+  "zero": ["0 0\n", "0 17\n", "-17 0\n"],
+  "int_overflow": ["2147483647 1\n", "-2147483648 -1\n", "2147483647 2147483647\n", "-2147483648 -2147483648\n"],
+  "whitespace": ["  7   5  \n", "7\t5", "7\n5\n"],
+  "int_limits_no_overflow": ["2147483646 1\n", "-2147483647 -1\n", "2147483647 -2147483648\n"]
+}
