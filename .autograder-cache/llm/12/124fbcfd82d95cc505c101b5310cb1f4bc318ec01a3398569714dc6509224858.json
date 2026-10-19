@@ -1,0 +1,71 @@
+{
+  "request": {
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
+    "temperature": 0.0,
+    "seed": 42,
+    "messages": [
+      {
+        "role": "system",
+        "content": "You grade the READABILITY of a student's C program in an introductory programming course.\nJudge only how easy the code is for a human to read and maintain -- NOT whether it is correct or fast.\n\nScore each criterion with an integer:\n- naming (0-3): 3 = descriptive names throughout; 2 = mostly clear; 1 = several cryptic names; 0 = mostly single letters or meaningless names. Loop counters i/j/k are acceptable.\n- comments (0-2): 2 = the program's purpose and every non-trivial function or block is explained; 1 = some useful comments; 0 = no useful comments. Comments that only restate the code do not count.\n- formatting (0-2): 2 = consistent indentation and spacing; 1 = minor inconsistencies; 0 = cramped or inconsistent layout.\n- clarity (0-3): 3 = straightforward logic, small focused functions, no magic numbers; 2 = mostly clear; 1 = hard to follow in places; 0 = convoluted.\n\nReply with JSON only: {\"naming\": int, \"comments\": int, \"formatting\": int, \"clarity\": int,\n\"reasons\": [up to 4 short strings, cite line numbers], \"suggestions\": [up to 3 short, concrete improvements]}"
+      },
+      {
+        "role": "user",
+        "content": "Measured facts (computed by a tool; trust them):\n{\"lines\": 26, \"code_lines\": 16, \"comment_lines\": 6, \"comment_ratio\": 0.38, \"identifiers\": [\"add\", \"first\", \"lhs\", \"rhs\", \"second\"], \"single_letter_identifiers\": [], \"avg_identifier_length\": 4.0, \"longest_line\": 76, \"lines_over_100_chars\": 0, \"mixed_tabs_and_spaces\": false}\n\nCode:\n  1| /*\n  2|  * add_clean.c - read two integers and print their exact sum.\n  3|  * The sum is computed in long long so that INT_MAX + 1 does not overflow.\n  4|  */\n  5| #include <stdio.h>\n  6| \n  7| /* Return lhs + rhs; 64-bit arithmetic cannot overflow for 32-bit inputs. */\n  8| static long long add(long long lhs, long long rhs)\n  9| {\n 10|     return lhs + rhs;\n 11| }\n 12| \n 13| int main(void)\n 14| {\n 15|     long long first = 0;\n 16|     long long second = 0;\n 17| \n 18|     /* Reject malformed input instead of printing a garbage sum. */\n 19|     if (scanf(\"%lld %lld\", &first, &second) != 2) {\n 20|         fprintf(stderr, \"expected two integers\\n\");\n 21|         return 1;\n 22|     }\n 23| \n 24|     printf(\"%lld\\n\", add(first, second));\n 25|     return 0;\n 26| }"
+      }
+    ],
+    "schema": {
+      "type": "object",
+      "properties": {
+        "naming": {
+          "type": "integer"
+        },
+        "comments": {
+          "type": "integer"
+        },
+        "formatting": {
+          "type": "integer"
+        },
+        "clarity": {
+          "type": "integer"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggestions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "naming",
+        "comments",
+        "formatting",
+        "clarity",
+        "reasons",
+        "suggestions"
+      ]
+    }
+  },
+  "raw": "{\"naming\": 2, \"comments\": 2, \"formatting\": 2, \"clarity\": 2,\n\"reasons\": [\"Use of 'lhs' and 'rhs' in the function name could be more descriptive.\", \"The comment on line 38 is redundant as it reiterates what the code does.\"], \"suggestions\": [\"Rename `add` to something like `safe_add` for better clarity.\", \"Remove or refine comments that merely repeat the obvious, such as lines 19-21.\"]}",
+  "data": {
+    "naming": 2,
+    "comments": 2,
+    "formatting": 2,
+    "clarity": 2,
+    "reasons": [
+      "Use of 'lhs' and 'rhs' in the function name could be more descriptive.",
+      "The comment on line 38 is redundant as it reiterates what the code does."
+    ],
+    "suggestions": [
+      "Rename `add` to something like `safe_add` for better clarity.",
+      "Remove or refine comments that merely repeat the obvious, such as lines 19-21."
+    ]
+  },
+  "model_digest": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e"
+}

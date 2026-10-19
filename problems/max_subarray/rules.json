@@ -1,0 +1,82 @@
+{
+  "problem": "max_subarray",
+  "statement": "problem.md",
+  "time_limit_s": 1,
+  "memory_limit_mb": 256,
+  "sample_input": "9\n-2 1 -3 4 -1 2 1 -5 4\n",
+  "reference": "reference.c",
+  "compile": { "cc": "gcc", "flags": "-O2 -std=c11", "ldflags": "-lm" },
+  "metrics": [
+    {
+      "name": "correctness",
+      "analyzer": "io_tests",
+      "weight": 0.25,
+      "params": { "testset_dir": "tests/",
+                  "generated": [ { "name": "09_max_random", "size": 200000, "seed": 9 } ] }
+    },
+    {
+      "name": "syntax",
+      "analyzer": "compiler_warnings",
+      "weight": 0.05,
+      "params": { "flags": "-Wall -Wextra -std=c11", "penalty_per_warning": 0.2 }
+    },
+    {
+      "name": "structure",
+      "analyzer": "static_analysis",
+      "weight": 0.05,
+      "params": { "max_cyclomatic": 8, "max_function_length": 40 }
+    },
+    {
+      "name": "modularity",
+      "analyzer": "function_split",
+      "weight": 0.05,
+      "params": { "expect_helpers": true, "min_functions": 2 }
+    },
+    {
+      "name": "logical",
+      "analyzer": "edge_case_runner",
+      "weight": 0.15,
+      "params": { "cases": "all", "random_tests": 40, "seed": 2024,
+                  "sizes": [1, 2, 3, 4, 5, 6, 8, 10, 12, 50, 500],
+                  "explain": "llm", "llm_model": "qwen2.5:7b" }
+    },
+    {
+      "name": "complexity",
+      "analyzer": "complexity_estimator",
+      "weight": 0.15,
+      "params": { "required": "O(n)", "sizes": [500, 1000, 2000, 4000, 8000] }
+    },
+    {
+      "name": "memory_safety",
+      "analyzer": "sanitizer_run",
+      "weight": 0.10,
+      "params": { "flags": "-fsanitize=address,undefined", "max_input_bytes": 20000 }
+    },
+    {
+      "name": "readability",
+      "analyzer": "llm_review",
+      "weight": 0.10,
+      "params": { "provider": "ollama", "model": "qwen2.5:7b", "temperature": 0, "seed": 42 }
+    },
+    {
+      "name": "originality",
+      "analyzer": "similarity_flag",
+      "weight": 0.05,
+      "params": { "corpus_dir": "submissions/", "known_dir": "known/", "flag_threshold": 0.85 }
+    },
+    {
+      "name": "safe_io",
+      "analyzer": "source_patterns",
+      "weight": 0.05,
+      "params": {
+        "forbid": [
+          { "pattern": "\\bgets\\s*\\(", "message": "gets() cannot limit input length; use fgets() or scanf()" },
+          { "pattern": "\\bsystem\\s*\\(", "message": "do not call system() in a grading environment" }
+        ],
+        "require": [
+          { "pattern": "scanf\\s*\\([^;]*\\)\\s*(!=|==|<|>)", "message": "check scanf's return value so malformed input is detected" }
+        ]
+      }
+    }
+  ]
+}

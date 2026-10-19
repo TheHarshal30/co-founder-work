@@ -1,0 +1,39 @@
+{
+  "request": {
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
+    "temperature": 0.0,
+    "seed": 2024,
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a teaching assistant. A student's C program gave a wrong result on one input. In at most 2 sentences explain WHY the code fails on this input, citing line numbers; then give a 1-sentence fix hint. Do not write code. Reply as JSON with keys explanation and fix_hint."
+      },
+      {
+        "role": "user",
+        "content": "# max_subarray\n\nThe first line contains n (1 <= n <= 200000). The second line contains n\nintegers a_1 .. a_n, each with |a_i| <= 10^9.\n\nPrint the largest possible sum of a non-empty contiguous subarray, followed by\na newline.\n\nNotes: the subarray must contain at least one element, so if every number is\nnegative the answer is the largest (least negative) number. The answer can be\nas large as 2 * 10^14, which does not fit in a 32-bit int.\n\nRequired time complexity: O(n). Time limit: 1 second.\n\nSample input:\n\n    9\n    -2 1 -3 4 -1 2 1 -5 4\n\nSample output:\n\n    6\n\n\nStudent code:\n  1| #include <stdio.h>\n  2| #include <stdlib.h>\n  3| \n  4| int main()\n  5| {\n  6|     int n;\n  7|     scanf(\"%d\", &n);\n  8|     long long *arr = (long long *)malloc(n * sizeof(long long));\n  9|     for (int i = 1; i <= n; i++)          /* 1-based loop writes arr[n] */\n 10|         scanf(\"%lld\", &arr[i]);\n 11|     long long best = arr[1], cur = 0;\n 12|     for (int i = 1; i <= n; i++) {\n 13|         cur = cur > 0 ? cur + arr[i] : arr[i];\n 14|         if (cur > best) best = cur;\n 15|     }\n 16|     printf(\"%lld\\n\", best);\n 17|     return 0;                             /* arr is never freed */\n 18| }\n\nInput:\n9\n-2 1 -3 4 -1 2 1 -5 4\n\nExpected output:\n6\n\nStudent output:\n(crashed (SIGABRT))\nVerdict: runtime_error\nAutomatic analysis: The program aborted: a failed assert(), or the C library detected a corrupted heap (double free, writing past the end of a malloc'd block). Sanitizer: s05_leaky.c:10: heap-buffer-overflow (WRITE of size 8)"
+      }
+    ],
+    "schema": {
+      "type": "object",
+      "properties": {
+        "explanation": {
+          "type": "string"
+        },
+        "fix_hint": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "explanation",
+        "fix_hint"
+      ]
+    }
+  },
+  "raw": "{\n  \"explanation\": \"The code fails because it uses a 1-based index loop to read input into an array allocated with a 0-based index, causing out-of-bounds memory access at `arr[n]`. Line 9 should use `for (int i = 0; i < n; i++)`.\",\n  \"fix_hint\": \"Change the loop in line 9 to `for (int i = 0; i < n; i++)`.\"\n}",
+  "data": {
+    "explanation": "The code fails because it uses a 1-based index loop to read input into an array allocated with a 0-based index, causing out-of-bounds memory access at `arr[n]`. Line 9 should use `for (int i = 0; i < n; i++)`.",
+    "fix_hint": "Change the loop in line 9 to `for (int i = 0; i < n; i++)`."
+  },
+  "model_digest": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e"
+}

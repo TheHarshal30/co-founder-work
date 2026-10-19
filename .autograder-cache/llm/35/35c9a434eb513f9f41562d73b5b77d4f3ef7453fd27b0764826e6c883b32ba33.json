@@ -1,0 +1,39 @@
+{
+  "request": {
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
+    "temperature": 0.0,
+    "seed": 2024,
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a teaching assistant. A student's C program gave a wrong result on one input. In at most 2 sentences explain WHY the code fails on this input, citing line numbers; then give a 1-sentence fix hint. Do not write code. Reply as JSON with keys explanation and fix_hint."
+      },
+      {
+        "role": "user",
+        "content": "# max_subarray\n\nThe first line contains n (1 <= n <= 200000). The second line contains n\nintegers a_1 .. a_n, each with |a_i| <= 10^9.\n\nPrint the largest possible sum of a non-empty contiguous subarray, followed by\na newline.\n\nNotes: the subarray must contain at least one element, so if every number is\nnegative the answer is the largest (least negative) number. The answer can be\nas large as 2 * 10^14, which does not fit in a 32-bit int.\n\nRequired time complexity: O(n). Time limit: 1 second.\n\nSample input:\n\n    9\n    -2 1 -3 4 -1 2 1 -5 4\n\nSample output:\n\n    6\n\n\nStudent code:\n  1| #include <stdio.h>\n  2| \n  3| /* Kadane's algorithm */\n  4| long long kadane(int n)\n  5| {\n  6|     long long best = 0, cur = 0, x;\n  7|     for (int i = 0; i < n; i++) {\n  8|         scanf(\"%lld\", &x);\n  9|         cur = cur + x;\n 10|         if (cur < 0)\n 11|             cur = 0;\n 12|         if (cur > best)\n 13|             best = cur;\n 14|     }\n 15|     return best;\n 16| }\n 17| \n 18| int main(void)\n 19| {\n 20|     int n;\n 21|     scanf(\"%d\", &n);\n 22|     printf(\"%lld\\n\", kadane(n));\n 23|     return 0;\n 24| }\n\nInput:\n3\n-5 -2 -9\n\nExpected output:\n-2\n\nStudent output:\n0\n\nVerdict: wrong_answer\nAutomatic analysis: You printed 0 but the answer is -2 (negative). A running maximum or best value initialised to 0 can never become negative."
+      }
+    ],
+    "schema": {
+      "type": "object",
+      "properties": {
+        "explanation": {
+          "type": "string"
+        },
+        "fix_hint": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "explanation",
+        "fix_hint"
+      ]
+    }
+  },
+  "raw": "{\n  \"explanation\": \"On line 6, `best` and `cur` are initialized to 0. For the input [-5, -2, -9], both `best` and `cur` remain 0 throughout the loop, leading to an incorrect result.\",\n  \"fix_hint\": \"Initialize `best` with the smallest possible integer value to ensure it can become negative.\"\n}",
+  "data": {
+    "explanation": "On line 6, `best` and `cur` are initialized to 0. For the input [-5, -2, -9], both `best` and `cur` remain 0 throughout the loop, leading to an incorrect result.",
+    "fix_hint": "Initialize `best` with the smallest possible integer value to ensure it can become negative."
+  },
+  "model_digest": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e"
+}

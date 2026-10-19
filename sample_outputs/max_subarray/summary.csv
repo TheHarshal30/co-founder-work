@@ -1,0 +1,8 @@
+submission,grade,correctness,syntax,structure,modularity,logical,complexity,memory_safety,readability,originality,safe_io,flags,fingerprint
+s01_kadane.c,93.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0.8,0.0,1.0,suspected_plagiarism,dbe7f8749d287216
+s02_zero_init.c,84.2,0.8,0.6,1.0,1.0,0.7917,1.0,1.0,0.6,1.0,0.6667,,0c549260a0327d21
+s03_brute_force.c,73.0,0.8,0.8,1.0,1.0,1.0,0.0,1.0,0.4,1.0,1.0,,bf8c125868602071
+s04_int_overflow.c,77.5,0.7,0.4,1.0,0.7333,0.8321,1.0,0.75,0.6,1.0,0.6667,,516c0dbaf7362a28
+s05_leaky.c,62.5,0.7,0.6,1.0,0.3,0.475,1.0,0.0,0.5,1.0,0.6667,,ad6236a77ae0e407
+s06_copy.c,89.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0.4,0.0,1.0,suspected_plagiarism,4d350131ade4ef2f
+s07_llm.c,75.8,0.7,0.6,1.0,1.0,0.8321,1.0,0.75,0.7,0.0,0.6667,suspected_external_copy,fa3d130457df9f9e
