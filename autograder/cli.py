@@ -4,6 +4,7 @@
     autograder batch  FOLDER       --rules RULES.json [--out reports/] [--generate-assets]
     autograder verify SUBMISSION.c --rules RULES.json [--runs 3]       [--generate-assets]
     autograder prepare --rules RULES.json      generate + validate missing assets only
+    autograder serve [--port 8000]             local web UI: grade, assets, history
     autograder check-rules RULES.json
     autograder tools
 
@@ -167,6 +168,13 @@ def cmd_prepare(args) -> int:
     return 0
 
 
+def cmd_serve(args) -> int:
+    from .web.server import serve
+
+    serve(Path(args.root), _cache_root(args), args.host, args.port, args.offline)
+    return 0
+
+
 def cmd_check_rules(args) -> int:
     rules = load_rules(args.rules, REGISTRY)
     total = sum(m.weight for m in rules.metrics)
@@ -221,6 +229,14 @@ def build_parser() -> argparse.ArgumentParser:
     pr = sub.add_parser("prepare", help="generate + validate missing assets (no grading)")
     common(pr, assets=False)
     pr.set_defaults(func=cmd_prepare)
+
+    sv = sub.add_parser("serve", help="local web UI (grade, generated assets, grade history)")
+    sv.add_argument("--host", default="127.0.0.1", help="interface to bind (default: localhost only)")
+    sv.add_argument("--port", type=int, default=8000)
+    sv.add_argument("--root", default=".", help="folder whose rules.json files the UI offers (default: current)")
+    sv.add_argument("--cache", default=None, help="cache folder (default: $AUTOGRADER_CACHE or .autograder-cache)")
+    sv.add_argument("--offline", action="store_true", help="tick 'offline' by default in the UI")
+    sv.set_defaults(func=cmd_serve)
 
     c = sub.add_parser("check-rules", help="validate a rules file")
     c.add_argument("rules")

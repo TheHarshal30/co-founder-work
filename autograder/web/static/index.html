@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AutoGrader</title>
+<style>
+:root {
+  --bg: #f6f7f9; --surface: #ffffff; --surface-2: #f0f2f5; --border: #dde1e7;
+  --text: #1b1f24; --muted: #5d6673; --accent: #2f5bea; --accent-text: #ffffff;
+  --ok: #17803d; --ok-bg: #e5f5ea; --warn: #9a5b00; --warn-bg: #fdf1dc;
+  --bad: #b42318; --bad-bg: #fde8e6; --info: #2f5bea; --info-bg: #e6ecfd;
+  --neutral-bg: #eceff3; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius: 10px; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216; --surface: #171b21; --surface-2: #1e232b; --border: #2b323c;
+    --text: #e6e9ee; --muted: #9aa4b2; --accent: #6d8dff; --accent-text: #0b0e13;
+    --ok: #5dd38a; --ok-bg: #12301d; --warn: #f2b65a; --warn-bg: #33260f;
+    --bad: #ff8a80; --bad-bg: #3a1714; --info: #8fa8ff; --info-bg: #1b2547;
+    --neutral-bg: #232933; --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 2; }
+.bar { max-width: 1180px; margin: 0 auto; padding: 0 16px; display: flex; align-items: center; gap: 24px; height: 56px; }
+.brand { font-weight: 650; font-size: 16px; letter-spacing: -.01em; }
+.brand span { color: var(--muted); font-weight: 400; margin-left: 6px; font-size: 13px; }
+nav { display: flex; gap: 4px; }
+nav button { background: none; border: 0; color: var(--muted); font: inherit; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+nav button:hover { background: var(--surface-2); color: var(--text); }
+nav button[aria-selected="true"] { background: var(--surface-2); color: var(--text); font-weight: 600; }
+main { max-width: 1180px; margin: 0 auto; padding: 20px 16px 60px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; margin-bottom: 16px; }
+.card h2 { margin: 0 0 12px; font-size: 15px; }
+.card h3 { margin: 18px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.grid { display: grid; grid-template-columns: 380px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } .bar { gap: 12px; } .brand span { display: none; } }
+label.field { display: block; font-weight: 600; margin: 14px 0 6px; }
+.hint { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+select, textarea, input[type=text] { width: 100%; background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font: inherit; }
+textarea { font-family: var(--mono); font-size: 12.5px; min-height: 150px; resize: vertical; }
+.seg { display: inline-flex; background: var(--surface-2); border-radius: 8px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: none; color: var(--muted); font: inherit; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); font-weight: 600; }
+.check { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0; }
+.check input { margin-top: 3px; }
+.btn { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 8px; padding: 9px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+.btn:disabled { opacity: .55; cursor: progress; }
+.btn.ghost { background: var(--surface-2); color: var(--text); font-weight: 500; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.spacer { flex: 1; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; background: var(--neutral-bg); color: var(--muted); }
+.b-ok { background: var(--ok-bg); color: var(--ok); } .b-warn { background: var(--warn-bg); color: var(--warn); }
+.b-bad { background: var(--bad-bg); color: var(--bad); } .b-info { background: var(--info-bg); color: var(--info); }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+tr.click { cursor: pointer; } tr.click:hover td { background: var(--surface-2); }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.scorebar { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; margin-top: 4px; min-width: 70px; }
+.scorebar i { display: block; height: 100%; background: var(--accent); }
+.summary { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+.big { font-size: 44px; font-weight: 700; letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.big small { font-size: 18px; color: var(--muted); font-weight: 500; }
+.meta { color: var(--muted); font-size: 13px; }
+pre { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; margin: 4px 0; overflow-x: auto;
+  font: 12.5px/1.45 var(--mono); white-space: pre-wrap; word-break: break-word; }
+.ce { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+.ce .io { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+@media (max-width: 700px) { .ce .io { grid-template-columns: 1fr; } }
+.ce .lbl { font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+ul.plain { margin: 0; padding-left: 18px; } ul.plain li { margin: 4px 0; }
+.empty { color: var(--muted); padding: 24px; text-align: center; }
+.error { background: var(--bad-bg); color: var(--bad); border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; }
+.chips button { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.chips button[aria-pressed="true"] { background: var(--text); color: var(--surface); border-color: var(--text); }
+details summary { cursor: pointer; color: var(--muted); }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.tablewrap { overflow-x: auto; }
+.back { background: none; border: 0; color: var(--accent); font: inherit; cursor: pointer; padding: 0; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <div class="brand">AutoGrader<span>C programs, graded by rules</span></div>
+  <nav role="tablist">
+    <button role="tab" data-tab="grade" aria-selected="true">Grade</button>
+    <button role="tab" data-tab="assets" aria-selected="false">Assets</button>
+    <button role="tab" data-tab="history" aria-selected="false">History</button>
+  </nav>
+</div></header>
+<main>
+  <section id="tab-grade"></section>
+  <section id="tab-assets" hidden></section>
+  <section id="tab-history" hidden></section>
+</main>
+<script>
+"use strict";
+// ---- tiny DOM helper: every string goes through textContent (no innerHTML) ----
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k.startsWith("aria-") && v != null) { el.setAttribute(k, String(v)); continue; }
+    if (v == null || v === false) continue;
+    if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "class") el.className = v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid instanceof Node ? kid : String(kid));
+  return el;
+}
+const $ = (s) => document.querySelector(s);
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const data = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+  if (!r.ok) { const e = new Error(data.error || `HTTP ${r.status}`); e.problems = data.problems || []; throw e; }
+  return data;
+}
+const STATUS_CLASS = {
+  ok: "b-ok", prepared: "b-ok", validated: "b-ok", ready: "b-ok",
+  partial: "b-warn", skipped: "b-warn", unavailable: "b-neutral", not_performed: "b-bad",
+  error: "b-bad", rejected: "b-bad",
+};
+const badge = (s) => h("span", { class: "badge " + (STATUS_CLASS[s] || "") }, String(s).replace(/_/g, " "));
+const FLAG_CLASS = { compile_failed: "b-bad", suspected_infinite_loop: "b-bad", tests_not_performed: "b-bad",
+  asset_generation_failed: "b-warn", llm_oracle_used: "b-warn", tests_incomplete: "b-warn", incomplete_grade: "b-warn",
+  suspected_plagiarism: "b-bad", suspected_external_copy: "b-bad" };
+const fmtTime = (t) => t ? new Date(t).toLocaleString() : "";
+const short = (s, n = 12) => (s || "").replace(/^sha256:/, "").slice(0, n);
+
+// ---- tabs ----
+function showTab(name) {
+  document.querySelectorAll("nav button").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === name));
+  for (const t of ["grade", "assets", "history"]) $("#tab-" + t).hidden = t !== name;
+  if (name === "assets") loadAssets();
+  if (name === "history") loadHistory();
+}
+document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+
+// ---- report view (shared by Grade and History) ----
+function scoreText(m) {
+  if (m.score == null) return "n/a";
+  const got = m.score * m.weight * 100, full = Math.round(m.weight * 100);
+  return `${Number.isInteger(got) ? got : got.toFixed(1)}/${full}`;
+}
+function renderReport(report, text, gradeId) {
+  const wrap = h("div");
+  const status = [];
+  if (!report.grade_complete) status.push(h("span", { class: "badge b-warn" }, "incomplete"));
+  if (report.partial) status.push(h("span", { class: "badge b-bad" }, "partial report"));
+  if (report.asset_preparation) status.push(h("span", { class: "badge b-info" }, "generated assets"));
+  wrap.append(h("div", { class: "card" },
+    h("div", { class: "summary" },
+      h("div", { class: "big" }, report.grade.toFixed(1), h("small", {}, " / 100")),
+      h("div", {},
+        h("div", { style: "font-weight:600;font-size:15px" }, report.submission),
+        h("div", { class: "meta" }, `Problem ${report.problem}` + (gradeId ? ` · grade #${gradeId}` : "")),
+        h("div", { class: "row", style: "margin-top:6px" }, status)),
+      h("div", { class: "spacer" }),
+      h("button", { class: "btn ghost", onclick: () => download(report) }, "Download JSON"))));
+
+  wrap.append(h("div", { class: "card" }, h("h2", {}, "Metrics"), h("div", { class: "tablewrap" },
+    h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Metric"), h("th", { class: "num" }, "Weight"),
+      h("th", {}, "Score"), h("th", {}, "Status"), h("th", {}, "Verdict"))),
+      h("tbody", {}, report.metrics.map((m) => h("tr", {},
+        h("td", {}, h("div", { style: "font-weight:600" }, m.name), h("div", { class: "meta" }, m.analyzer)),
+        h("td", { class: "num" }, Math.round(m.weight * 100)),
+        h("td", { class: "num" }, scoreText(m),
+          h("div", { class: "scorebar" }, h("i", { style: `width:${m.score == null ? 0 : m.score * 100}%` }))),
+        h("td", {}, badge(m.status)),
+        h("td", {}, m.feedback))))))));
+
+  if (report.flags.length) wrap.append(h("div", { class: "card" }, h("h2", {}, "Flags"),
+    h("ul", { class: "plain" }, report.flags.map((f) =>
+      h("li", {}, h("span", { class: "badge " + (FLAG_CLASS[f.type] || "") }, f.type.replace(/_/g, " ")), " ", f.detail)))));
+
+  if (report.counterexamples.length) wrap.append(h("div", { class: "card" }, h("h2", {}, "Where it failed"),
+    report.counterexamples.map((c) => h("div", { class: "ce" },
+      h("div", { class: "row" }, h("strong", {}, c.label), badge(c.verdict), h("span", { class: "meta" }, c.metric)),
+      h("div", { class: "io", style: "margin-top:8px" },
+        ["input", "expected", "got"].map((k) => h("div", {}, h("div", { class: "lbl" }, k), h("pre", {}, c[k] || "(empty)")))),
+      h("div", { style: "margin-top:6px" }, h("strong", {}, "Why: "), c.why),
+      c.fix && h("div", {}, h("strong", {}, "Fix: "), c.fix),
+      c.same_problem_on && h("div", { class: "meta" }, "Same problem on " + c.same_problem_on.join(", "))))));
+
+  if (report.suggestions.length) wrap.append(h("div", { class: "card" }, h("h2", {}, "Suggestions (biggest gains first)"),
+    h("ul", { class: "plain" }, report.suggestions.map((s) => h("li", {}, s.suggestion, " ", h("span", { class: "meta" }, `[${s.metric}]`))))));
+
+  const prep = report.asset_preparation;
+  if (prep) wrap.append(h("div", { class: "card" },
+    h("div", { class: "row" }, h("h2", { style: "margin:0" }, "Test assets (generated workflow)"), h("div", { class: "spacer" }),
+      h("button", { class: "btn ghost", onclick: () => { showTab("assets"); openBundle(prep.bundle_key); } }, "Inspect bundle")),
+    h("p", {}, "Expected outputs from: ", h("strong", {}, prep.expected_outputs_from.replace(/_/g, " ")),
+      h("span", { class: "meta" }, " — the submission's own output is never used as the answer key.")),
+    h("div", { class: "chips" }, Object.entries(prep.assets || {}).map(([k, v]) => h("span", { class: "badge " + (STATUS_CLASS[k] || "") }, `${k} ${v}`))),
+    h("table", {}, h("tbody", {}, Object.entries(prep.metrics).map(([n, m]) =>
+      h("tr", {}, h("td", { style: "font-weight:600" }, n), h("td", {}, badge(m.status)), h("td", {}, m.detail))))),
+    prep.failures.length ? h("div", {}, h("h3", {}, "Generation failures (not the student's fault)"),
+      h("ul", { class: "plain" }, prep.failures.map((f) => h("li", {}, h("strong", {}, f.step + ": "), f.detail)))) : null));
+
+  const tv = report.tool_versions || {};
+  wrap.append(h("div", { class: "card" },
+    h("div", { class: "meta mono" }, "Fingerprint " + report.fingerprint),
+    h("div", { class: "meta mono" }, `Rules ${short(report.rules_hash, 16)} · Assets ${short(report.assets_hash, 16)}`),
+    h("div", { class: "meta" }, Object.entries(tv).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(" · ")),
+    text ? h("details", { style: "margin-top:10px" }, h("summary", {}, "Plain-text report (what the student receives)"), h("pre", {}, text)) : null));
+  return wrap;
+}
+function download(report) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: "application/json" }));
+  const a = h("a", { href: url, download: report.submission.replace(/\.c$/, "") + ".json" });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ---- Grade tab ----
+const state = { rulesMode: "folder", problems: [] };
+function seg(options, current, onPick) {
+  return h("div", { class: "seg" }, options.map(([v, label]) =>
+    h("button", { type: "button", "aria-pressed": v === current, onclick: () => onPick(v) }, label)));
+}
+function readFile(input, target) {
+  input.addEventListener("change", async () => { if (input.files[0]) { target.value = await input.files[0].text(); target.dispatchEvent(new Event("input")); } });
+}
+async function initGrade() {
+  const tab = $("#tab-grade");
+  let info = { rules: [], offline_default: false };
+  try { info = await api("/api/problems"); } catch (e) { /* render anyway */ }
+  state.problems = info.rules;
+  const rulesSel = h("select", {}, info.rules.length ? info.rules.map((r) => h("option", { value: r }, r)) : h("option", { value: "" }, "no rules.json found under the server folder"));
+  const rulesText = h("textarea", { placeholder: '{ "problem": "…", "metrics": [ … ] }', spellcheck: "false" });
+  const rulesFile = h("input", { type: "file", accept: ".json,application/json" });
+  readFile(rulesFile, rulesText);
+  const subName = h("input", { type: "text", value: "submission.c" });
+  const subText = h("textarea", { placeholder: "#include <stdio.h>\nint main(void) { … }", spellcheck: "false", style: "min-height:220px" });
+  const subFile = h("input", { type: "file", accept: ".c,text/x-c" });
+  subFile.addEventListener("change", () => { if (subFile.files[0]) subName.value = subFile.files[0].name; });
+  readFile(subFile, subText);
+  const gen = h("input", { type: "checkbox", id: "gen" });
+  const off = h("input", { type: "checkbox", id: "off", checked: info.offline_default });
+  const go = h("button", { class: "btn", type: "submit" }, "Grade");
+  const err = h("div");
+  const out = h("div", {}, h("div", { class: "card empty" }, "The report appears here."));
+
+  const folderBox = h("div", {}, rulesSel, h("div", { class: "hint" }, "Instructor problem folders on this machine (tests, reference and other assets next to rules.json are used)."));
+  const uploadBox = h("div", { hidden: true }, rulesFile, h("div", { style: "height:6px" }), rulesText,
+    h("div", { class: "hint" }, "Uploaded rules have no files next to them, so tick “generate missing assets”. Plugins and absolute paths are refused."));
+  const modeHolder = h("div");
+  const setMode = (m) => {
+    state.rulesMode = m; folderBox.hidden = m !== "folder"; uploadBox.hidden = m !== "upload";
+    if (m === "upload") gen.checked = true;
+    modeHolder.replaceChildren(seg([["folder", "From folder"], ["upload", "Upload rules.json"]], m, setMode));
+  };
+  setMode(info.rules.length ? "folder" : "upload");
+
+  const form = h("form", { class: "card", onsubmit: async (ev) => {
+    ev.preventDefault();
+    err.replaceChildren();
+    const body = { submission: { name: subName.value.trim(), source: subText.value },
+      rules: state.rulesMode === "folder" ? { path: rulesSel.value } : { json: rulesText.value },
+      generate_assets: gen.checked, offline: off.checked };
+    go.disabled = true; go.replaceChildren(h("span", { class: "spinner" }), " Grading…");
+    out.replaceChildren(h("div", { class: "card empty" }, gen.checked
+      ? "Preparing assets and grading. The first run with a new rules file can take a while if the LLM is asked for assets."
+      : "Compiling, running and analysing…"));
+    try {
+      const r = await api("/api/grade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      out.replaceChildren(renderReport(r.report, r.text, r.id));
+    } catch (e) {
+      out.replaceChildren();
+      err.replaceChildren(h("div", { class: "error" }, h("strong", {}, e.message), e.problems.length ? h("ul", { class: "plain" }, e.problems.map((p) => h("li", {}, p))) : null));
+    } finally { go.disabled = false; go.replaceChildren("Grade"); }
+  } },
+    h("h2", {}, "Grade a submission"),
+    h("label", { class: "field" }, "Rules"), modeHolder, h("div", { style: "height:8px" }), folderBox, uploadBox,
+    h("label", { class: "field" }, "Submission"), subFile, h("div", { style: "height:6px" }), subName, h("div", { style: "height:6px" }), subText,
+    h("div", { class: "check" }, gen, h("label", { for: "gen" }, h("strong", {}, "Generate missing assets"),
+      h("div", { class: "hint" }, "Detect, generate and validate tests, generators and corner cases the rules need but the folder lacks. Nothing is generated if the folder is complete."))),
+    h("div", { class: "check" }, off, h("label", { for: "off" }, h("strong", {}, "Offline"),
+      h("div", { class: "hint" }, "Never call an LLM; reuse stored assets and cached answers only."))),
+    h("div", { class: "row", style: "margin-top:12px" }, go), err);
+  tab.replaceChildren(h("div", { class: "grid" }, h("div", {}, form), out));
+}
+
+// ---- Assets tab ----
+async function loadAssets() {
+  const tab = $("#tab-assets");
+  tab.replaceChildren(h("div", { class: "card empty" }, h("span", { class: "spinner" })));
+  let data;
+  try { data = await api("/api/bundles"); } catch (e) { return tab.replaceChildren(h("div", { class: "error" }, e.message)); }
+  if (!data.bundles.length) return tab.replaceChildren(h("div", { class: "card empty" },
+    "No generated asset bundles yet. Grade with “Generate missing assets” on a rules file that lacks assets."));
+  tab.replaceChildren(h("div", { class: "card" }, h("h2", {}, "Generated asset bundles"),
+    h("p", { class: "meta" }, "One bundle per rules + statement + instructor assets + model + generator version. Reused until one of those changes."),
+    h("div", { class: "tablewrap" }, h("table", {},
+      h("thead", {}, h("tr", {}, ["Problem", "Created", "Model", "Expected outputs from", "Assets", "Grades", "Key"].map((t) => h("th", {}, t)))),
+      h("tbody", {}, data.bundles.map((b) => h("tr", { class: "click", onclick: () => openBundle(b.bundle_key) },
+        h("td", { style: "font-weight:600" }, b.problem), h("td", {}, fmtTime(b.created_at)),
+        h("td", {}, `${b.model_provider}/${b.model_name}`),
+        h("td", {}, (b.expected_outputs_from || "").replace(/_/g, " ")),
+        h("td", {}, h("div", { class: "chips", style: "margin:0" }, Object.entries(b.counts).map(([k, v]) => h("span", { class: "badge " + (STATUS_CLASS[k] || "") }, `${k} ${v}`)))),
+        h("td", { class: "num" }, b.grades), h("td", { class: "mono" }, short(b.bundle_key)))))))));
+}
+async function openBundle(key) {
+  const tab = $("#tab-assets");
+  tab.replaceChildren(h("div", { class: "card empty" }, h("span", { class: "spinner" })));
+  let b;
+  try { b = await api("/api/bundles/" + key); } catch (e) { return tab.replaceChildren(h("div", { class: "error" }, e.message)); }
+  const m = b.manifest;
+  let filter = "all";
+  const statuses = ["all", "validated", "rejected", "skipped", "unavailable"];
+  const chips = h("div", { class: "chips" });
+  const body = h("tbody");
+  const draw = () => {
+    chips.replaceChildren(...statuses.map((s) => h("button", { "aria-pressed": s === filter, onclick: () => { filter = s; draw(); } },
+      s === "all" ? `all ${b.assets.length}` : `${s} ${b.assets.filter((a) => a.status === s).length}`)));
+    body.replaceChildren(...b.assets.filter((a) => filter === "all" || a.status === filter).map((a) => {
+      const row = h("tr", { class: a.content ? "click" : "" }, h("td", {}, badge(a.status)), h("td", {}, a.kind),
+        h("td", { class: "mono" }, a.name), h("td", {}, a.origin.replace(/_/g, " ")), h("td", {}, a.detail));
+      if (!a.content) return [row];
+      const detail = h("tr", { hidden: true }, h("td", { colspan: 5 }, h("pre", {}, a.content + (a.truncated ? "\n… (truncated)" : ""))));
+      row.addEventListener("click", () => { detail.hidden = !detail.hidden; });
+      return [row, detail];
+    }).flat());
+  };
+  draw();
+  tab.replaceChildren(
+    h("button", { class: "back", onclick: loadAssets }, "← All bundles"),
+    h("div", { class: "card" }, h("h2", {}, `${b.problem} · bundle ${short(key)}`),
+      h("div", { class: "meta" }, `${b.provider}/${b.model}` + (b.model_digest ? ` (${short(b.model_digest, 16)})` : "") +
+        ` · ${b.generator_version} · created ${fmtTime(b.created_at)}`),
+      h("p", {}, "Expected outputs from: ", h("strong", {}, String(m.expected_outputs_from).replace(/_/g, " "))),
+      h("h3", {}, "Per metric"),
+      h("table", {}, h("tbody", {}, Object.entries(m.metrics).map(([n, x]) => h("tr", {},
+        h("td", { style: "font-weight:600" }, n), h("td", {}, badge(x.status)), h("td", {}, x.detail),
+        h("td", { class: "meta" }, (x.missing || []).join("; ")))))),
+      m.failures.length ? [h("h3", {}, "Generation failures"), h("ul", { class: "plain" }, m.failures.map((f) => h("li", {}, h("strong", {}, f.step + ": "), f.detail)))] : null),
+    h("div", { class: "card" }, h("h2", {}, "Assets"), h("p", { class: "meta" }, "Every candidate is kept, including rejected ones and the reason. Click a row to see its content."),
+      chips, h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, ["Status", "Kind", "Name", "Origin", "Detail"].map((t) => h("th", {}, t)))), body))),
+    h("div", { class: "card" }, h("h2", {}, "LLM attempts and validation"),
+      b.events.length ? h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, ["Step", "Attempt", "Outcome", "Detail"].map((t) => h("th", {}, t)))),
+        h("tbody", {}, b.events.map((e) => h("tr", {}, h("td", { class: "mono" }, e.step), h("td", { class: "num" }, e.attempt),
+          h("td", {}, badge(e.outcome === "accepted" ? "validated" : e.outcome === "rejected" ? "rejected" : "unavailable")), h("td", {}, e.detail || ""))))))
+        : h("div", { class: "meta" }, "No LLM calls were needed.")));
+}
+
+// ---- History tab ----
+async function loadHistory() {
+  const tab = $("#tab-history");
+  tab.replaceChildren(h("div", { class: "card empty" }, h("span", { class: "spinner" })));
+  let data;
+  try { data = await api("/api/grades"); } catch (e) { return tab.replaceChildren(h("div", { class: "error" }, e.message)); }
+  if (!data.grades.length) return tab.replaceChildren(h("div", { class: "card empty" }, "No grades recorded yet."));
+  // Same submission + same rules + same assets must give the same fingerprint.
+  const groups = {};
+  for (const g of data.grades) (groups[`${g.submission_sha256}|${g.rules_hash}|${g.bundle_key}`] ||= []).push(g.fingerprint);
+  const search = h("input", { type: "text", placeholder: "Filter by submission or problem" });
+  const body = h("tbody");
+  const draw = () => {
+    const q = search.value.toLowerCase();
+    body.replaceChildren(...data.grades.filter((g) => !q || g.submission.toLowerCase().includes(q) || g.problem.toLowerCase().includes(q)).map((g) => {
+      const fps = groups[`${g.submission_sha256}|${g.rules_hash}|${g.bundle_key}`];
+      const repro = fps.length < 2 ? h("span", { class: "meta" }, "1 run")
+        : new Set(fps).size === 1 ? h("span", { class: "badge b-ok" }, `${fps.length} runs identical`) : h("span", { class: "badge b-bad" }, `${new Set(fps).size} different results`);
+      return h("tr", { class: "click", onclick: () => openGrade(g.id) },
+        h("td", { class: "num" }, "#" + g.id), h("td", {}, fmtTime(g.created_at)), h("td", { style: "font-weight:600" }, g.submission),
+        h("td", {}, g.problem), h("td", { class: "num" }, g.grade.toFixed(1)),
+        h("td", {}, g.grade_complete ? badge("ok") : h("span", { class: "badge b-warn" }, "incomplete")),
+        h("td", {}, g.bundle_key ? h("span", { class: "badge b-info" }, "generated") : h("span", { class: "badge" }, "explicit")),
+        h("td", {}, repro), h("td", { class: "mono" }, short(g.fingerprint)));
+    }));
+  };
+  search.addEventListener("input", draw);
+  draw();
+  tab.replaceChildren(h("div", { class: "card" }, h("div", { class: "row" }, h("h2", { style: "margin:0" }, "Grade history"), h("div", { class: "spacer" }), h("div", { style: "width:280px;max-width:100%" }, search)),
+    h("p", { class: "meta" }, "Every grade from the CLI or this page, from the local SQLite database. Re-grading the same submission under the same rules and assets must give an identical fingerprint."),
+    h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, ["#", "When", "Submission", "Problem", "Grade", "Complete", "Assets", "Reproducible", "Fingerprint"].map((t) => h("th", {}, t)))), body))));
+}
+async function openGrade(id) {
+  const tab = $("#tab-history");
+  tab.replaceChildren(h("div", { class: "card empty" }, h("span", { class: "spinner" })));
+  try {
+    const g = await api("/api/grades/" + id);
+    tab.replaceChildren(h("button", { class: "back", onclick: loadHistory }, "← All grades"),
+      h("div", { class: "meta", style: "margin-bottom:8px" }, `Graded ${fmtTime(g.created_at)}`), renderReport(g.report, g.text, g.id));
+  } catch (e) { tab.replaceChildren(h("div", { class: "error" }, e.message)); }
+}
+
+initGrade();
+</script>
+</body>
+</html>

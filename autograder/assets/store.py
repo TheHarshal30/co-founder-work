@@ -188,6 +188,32 @@ class AssetStore:
                  report["fingerprint"], json.dumps(report, sort_keys=True), _now()))
             return int(cur.lastrowid)
 
+    def grade(self, grade_id: int) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            row = self._db.execute("SELECT * FROM grades WHERE id = ?", (grade_id,)).fetchone()
+        if row is None:
+            return None
+        out = dict(row)
+        out["report"] = json.loads(out.pop("report_json"))
+        return out
+
+    def bundles(self) -> List[Dict[str, Any]]:
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT b.bundle_key, b.problem, b.model_provider, b.model_name, b.model_digest, "
+                "b.generator_version, b.created_at, b.manifest_json, "
+                "(SELECT COUNT(*) FROM grades g WHERE g.bundle_key = b.bundle_key) AS grades "
+                "FROM asset_bundles b ORDER BY b.created_at DESC").fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            manifest = json.loads(d.pop("manifest_json"))
+            d.update({"expected_outputs_from": manifest.get("expected_outputs_from"),
+                      "counts": manifest.get("counts", {}), "metrics": manifest.get("metrics", {}),
+                      "failures": manifest.get("failures", [])})
+            out.append(d)
+        return out
+
     def grades(self, submission_sha256: Optional[str] = None) -> List[Dict[str, Any]]:
         q, args = "SELECT id, submission, submission_sha256, problem, rules_hash, bundle_key, grade, " \
                   "grade_complete, fingerprint, created_at FROM grades", []

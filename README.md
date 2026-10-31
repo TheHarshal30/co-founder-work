@@ -83,6 +83,30 @@ memory limit are also off. Use Docker for grades you publish.
 ./grade.sh check-rules problems/max_subarray/rules.json
 ```
 
+### Web UI
+
+```sh
+./grade.sh serve                 # Docker: open http://localhost:8000 (AUTOGRADER_PORT=9000 to change)
+autograder serve --port 8000     # without Docker
+```
+
+A local page with three tabs, over the same functions as the CLI:
+
+* **Grade**: pick a `rules.json` from this folder (or upload one), paste or
+  upload a `.c` file, optionally tick *Generate missing assets* / *Offline*,
+  and get the full report: metrics, flags, failing inputs with expected vs.
+  got, WHY/FIX, suggestions, generated-asset status, fingerprint, and the
+  plain-text report the student receives.
+* **Assets**: every generated asset bundle; per metric prepared / partial /
+  not performed, generation failures, every asset (validated, rejected with
+  the reason, skipped, unavailable) with its content, and every LLM attempt.
+* **History**: every grade from the SQLite database (CLI or UI), with a
+  reproducibility check: re-grades of the same submission under the same
+  rules and assets must have identical fingerprints.
+
+It binds to localhost only (it compiles and runs the code you give it).
+Uploaded rules may not load plugins or use absolute or `..` paths.
+
 Without Docker, replace `./grade.sh` with `autograder`. Useful flags:
 `--out DIR`, `--offline` (answer LLM metrics from the cache only, never call a
 model), `--cache DIR`, `--keep` (keep the temporary build folder for debugging).
@@ -302,7 +326,7 @@ class LineBudget(Analyzer):
 ## 7. Tests
 
 ```sh
-.venv/bin/python -m pytest -q        # 68 tests on the host (1 is Linux-only and skips on macOS)
+.venv/bin/python -m pytest -q        # 77 tests on the host (1 is Linux-only and skips on macOS)
 ./scripts/test_in_docker.sh          # same suite inside the Linux image (valgrind, LSan, RLIMIT_AS)
 ```
 
@@ -310,7 +334,7 @@ class LineBudget(Analyzer):
 
 ```
 autograder/
-  cli.py            grade / batch / verify / prepare / check-rules / tools
+  cli.py            grade / batch / verify / prepare / serve / check-rules / tools
   coordinator.py    the main agent: first pass, dispatch, collation, fingerprint
   rules.py          load + validate the rules file, hash problem assets
   sandbox.py        run untrusted binaries under CPU/memory/output/wall limits
@@ -324,6 +348,7 @@ autograder/
   analyzers/        one file per analyzer (+ base.py: contract and registry)
   assets/           --generate-assets: inventory, LLM generation + retries, input specs,
                     oracle validation, SQLite store, materialisation (prepare.py is the pipeline)
+  web/              `serve`: stdlib HTTP server + JSON API, static/index.html (no build step)
   data/usefulness_limitations.json
 problems/           two example problems with rules, tests, reference, submissions
 sample_outputs/     the agent's reports on every sample submission (Docker toolchain)

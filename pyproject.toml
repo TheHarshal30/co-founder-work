@@ -20,7 +20,7 @@ autograder = "autograder.cli:main"
 include = ["autograder*"]
 
 [tool.setuptools.package-data]
-autograder = ["data/*.json"]
+autograder = ["data/*.json", "web/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
