@@ -1,39 +1,108 @@
 """Command line: grade one file, grade a folder, verify reproducibility, check rules.
 
-    autograder grade  SUBMISSION.c --rules RULES.json [--out reports/]
-    autograder batch  FOLDER       --rules RULES.json [--out reports/]
-    autograder verify SUBMISSION.c --rules RULES.json [--runs 3]
+    autograder grade  SUBMISSION.c --rules RULES.json [--out reports/] [--generate-assets]
+    autograder batch  FOLDER       --rules RULES.json [--out reports/] [--generate-assets]
+    autograder verify SUBMISSION.c --rules RULES.json [--runs 3]       [--generate-assets]
+    autograder prepare --rules RULES.json      generate + validate missing assets only
     autograder check-rules RULES.json
     autograder tools
+
+Without --generate-assets nothing changes: every asset the rules name must exist.
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import os
+import sqlite3
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from . import tools
 from .analyzers import REGISTRY
+from .assets import AssetStore, Preparation, prepare_assets
 from .coordinator import grade
 from .llm import LLMClient
 from .report import write_reports
 from .rules import Rules, RulesError, load_rules
 
+DB_NAME = "autograder.sqlite3"
 
-def _load(rules_path: str) -> Rules:
-    return load_rules(rules_path, REGISTRY)
+
+def _cache_root(args) -> Path:
+    return Path(args.cache or os.environ.get("AUTOGRADER_CACHE", ".autograder-cache"))
 
 
 def _llm(args) -> LLMClient:
     return LLMClient(Path(args.cache) / "llm" if args.cache else None, offline=args.offline)
 
 
+def _store(args) -> Optional[AssetStore]:
+    if getattr(args, "no_db", False):
+        return None
+    try:
+        return AssetStore(_cache_root(args) / DB_NAME)
+    except (sqlite3.Error, OSError) as e:
+        print(f"warning: database unavailable ({e}); grades are written to files only", file=sys.stderr)
+        return None
+
+
+def _prepare(args, llm: LLMClient) -> Preparation:
+    store = _store(args)
+    if store is None:  # generated assets are only trusted once they are recorded
+        store = AssetStore(_cache_root(args) / DB_NAME)
+    try:
+        prep = prepare_assets(args.rules, llm, store, _cache_root(args))
+    finally:
+        store.close()
+    if prep.overlay is not None:
+        _print_preparation(prep)
+    return prep
+
+
+def _load(args, llm: Optional[LLMClient] = None) -> Rules:
+    if getattr(args, "generate_assets", False):
+        prep = _prepare(args, llm or _llm(args))
+        args._prep = prep
+        return load_rules(args.rules, REGISTRY, prep.overlay)
+    return load_rules(args.rules, REGISTRY)
+
+
+def _print_preparation(prep: Preparation) -> None:
+    sec = prep.overlay.report if prep.overlay else {}
+    err = sys.stderr
+    print(f"asset preparation: bundle {prep.bundle_key[:16] if prep.bundle_key else '-'} "
+          f"({'cached' if prep.cache_hit else 'generated now'}) in {prep.bundle_dir}", file=err)
+    counts = sec.get("assets", {})
+    if counts:
+        print("  assets: " + ", ".join(f"{k} {v}" for k, v in counts.items()), file=err)
+    print(f"  expected outputs from: {sec.get('expected_outputs_from', '-').replace('_', ' ')}", file=err)
+    for name, m in sec.get("metrics", {}).items():
+        print(f"  {name:<15} {m['status']:<14} {m['detail']}", file=err)
+    for f in sec.get("failures", []):
+        print(f"  generation failure: {f['step']}: {f['detail']}", file=err)
+
+
+def _record(args, store: Optional[AssetStore], report: Dict[str, Any]) -> None:
+    prep = getattr(args, "_prep", None)
+    if prep is not None and prep.overlay is not None:
+        report["meta"]["assets"] = {"cache_hit": prep.cache_hit, "bundle_dir": str(prep.bundle_dir)}
+    if store is None:
+        return
+    try:
+        store.record_grade(report)
+    except sqlite3.Error as e:
+        print(f"warning: could not record the grade in the database ({e})", file=sys.stderr)
+
+
 def cmd_grade(args) -> int:
-    rules = _load(args.rules)
-    report = grade(Path(args.submission), rules, _llm(args), keep_workdir=args.keep)
+    llm = _llm(args)
+    rules = _load(args, llm)
+    report = grade(Path(args.submission), rules, llm, keep_workdir=args.keep)
+    store = _store(args)
+    _record(args, store, report)
     paths = write_reports(report, Path(args.out))
     if not args.quiet:
         sys.stdout.write(paths[1].read_text())
@@ -42,8 +111,9 @@ def cmd_grade(args) -> int:
 
 
 def cmd_batch(args) -> int:
-    rules = _load(args.rules)
     llm = _llm(args)
+    rules = _load(args, llm)  # assets are prepared once for the whole batch
+    store = _store(args)
     files = sorted(Path(args.folder).glob("*.c"))
     if not files:
         print(f"no .c files in {args.folder}", file=sys.stderr)
@@ -52,6 +122,7 @@ def cmd_batch(args) -> int:
     rows = []
     for f in files:
         report = grade(f, rules, llm)
+        _record(args, store, report)
         write_reports(report, out)
         flags = ",".join(sorted({fl["type"] for fl in report["flags"]}))
         rows.append({"submission": f.name, "grade": report["grade"],
@@ -68,8 +139,8 @@ def cmd_batch(args) -> int:
 
 def cmd_verify(args) -> int:
     """Grade the same submission N times and require identical fingerprints."""
-    rules = _load(args.rules)
     llm = _llm(args)
+    rules = _load(args, llm)
     prints = []
     for i in range(args.runs):
         r = grade(Path(args.submission), rules, llm)
@@ -83,8 +154,21 @@ def cmd_verify(args) -> int:
     return 2
 
 
+def cmd_prepare(args) -> int:
+    """Generate and validate the missing assets without grading anything."""
+    prep = _prepare(args, _llm(args))
+    if prep.overlay is None:
+        print("nothing missing: every asset the rules need exists; the explicit workflow applies")
+        return 0
+    rules = load_rules(args.rules, REGISTRY, prep.overlay)  # the prepared rules must validate
+    unperformed = rules.overlay.not_performed if rules.overlay else {}
+    print(f"prepared {rules.problem}: {len(rules.metrics) - len(unperformed)}/{len(rules.metrics)} metrics "
+          f"can be measured" + (f"; not performed: {', '.join(unperformed)}" if unperformed else ""))
+    return 0
+
+
 def cmd_check_rules(args) -> int:
-    rules = _load(args.rules)
+    rules = load_rules(args.rules, REGISTRY)
     total = sum(m.weight for m in rules.metrics)
     print(f"OK: {rules.problem} - {len(rules.metrics)} metrics, weights sum to {total:.2f}")
     for m in rules.metrics:
@@ -104,11 +188,15 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="autograder", description="Rule-driven grader for C programs.")
     sub = p.add_subparsers(dest="command", required=True)
 
-    def common(sp, needs_rules=True):
+    def common(sp, needs_rules=True, assets=True):
         if needs_rules:
             sp.add_argument("--rules", required=True, help="rules JSON file")
         sp.add_argument("--cache", default=None, help="cache folder (default: $AUTOGRADER_CACHE or .autograder-cache)")
         sp.add_argument("--offline", action="store_true", help="never call an LLM; use cached answers only")
+        sp.add_argument("--no-db", action="store_true", help="do not record grades in the SQLite database")
+        if assets:
+            sp.add_argument("--generate-assets", action="store_true",
+                            help="generate and validate test assets the rules need but the problem folder lacks")
 
     g = sub.add_parser("grade", help="grade one submission")
     g.add_argument("submission")
@@ -129,6 +217,10 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("--runs", type=int, default=3)
     common(v)
     v.set_defaults(func=cmd_verify)
+
+    pr = sub.add_parser("prepare", help="generate + validate missing assets (no grading)")
+    common(pr, assets=False)
+    pr.set_defaults(func=cmd_prepare)
 
     c = sub.add_parser("check-rules", help="validate a rules file")
     c.add_argument("rules")

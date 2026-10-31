@@ -96,6 +96,17 @@ def render_text(r: Dict[str, Any]) -> str:
         for s in r["suggestions"]:
             L.extend(_wrap(f"{s['suggestion']} [{s['metric']}]", 2, "- "))
 
+    prep = r.get("asset_preparation")
+    if prep:
+        L.append("")
+        L.append("--- Test assets (generated workflow) ---")
+        L.extend(_wrap("Expected outputs from: " + prep["expected_outputs_from"].replace("_", " ")
+                       + ". The submission's own output is never used as the answer key.", 2, "  "))
+        if prep.get("assets"):
+            L.append("  Assets: " + ", ".join(f"{k} {v}" for k, v in prep["assets"].items()))
+        for name, m in prep["metrics"].items():
+            L.extend(_wrap(f"{name}: {m['status'].replace('_', ' ')} - {m['detail']}", 4, "  - "))
+
     ul = r.get("usefulness_limitations")
     if ul:
         L.append("")

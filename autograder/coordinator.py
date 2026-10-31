@@ -90,6 +90,13 @@ def _skip(reason: str) -> AnalyzerResult:
     return AnalyzerResult(score=0.0, feedback=f"Skipped: {reason}", status="skipped")
 
 
+def _not_performed(reason: str) -> AnalyzerResult:
+    # Not the student's fault (unlike "skipped") and not a missing tool (unlike
+    # "unavailable"): the test assets could not be established, so nothing was
+    # tested and no credit is given.
+    return AnalyzerResult(score=None, feedback=f"Not performed: {reason}", status="not_performed")
+
+
 def _run_one(ctx: Context, metric) -> AnalyzerResult:
     analyzer = REGISTRY[metric.analyzer]()
     try:
@@ -122,9 +129,12 @@ def grade(
 
         results: Dict[str, AnalyzerResult] = {}
         to_run = []
+        not_performed = rules.overlay.not_performed if rules.overlay else {}
         for m in rules.metrics:
             needs_exec = REGISTRY[m.analyzer].needs_execution
-            if needs_exec and not fp.compiled:
+            if m.name in not_performed:
+                results[m.name] = _not_performed(not_performed[m.name])
+            elif needs_exec and not fp.compiled:
                 results[m.name] = _skip("the program does not compile")
             elif needs_exec and fp.suspected_infinite_loop:
                 results[m.name] = _skip("the program did not halt on the sample input (suspected infinite loop)")
@@ -160,6 +170,7 @@ def collate(ctx: Context, fp: FirstPass, results: Dict[str, AnalyzerResult]) -> 
     rules = ctx.rules
     metrics_out, flags, suggestions = [], [], []
     measured_weight = 0.0
+    unperformed_weight = 0.0  # counts against the grade: no credit for tests not run
     total = 0.0
     for m in rules.metrics:
         r = results[m.name]
@@ -167,6 +178,8 @@ def collate(ctx: Context, fp: FirstPass, results: Dict[str, AnalyzerResult]) -> 
                                  "status": r.status}
         if r.score is None:
             entry.update({"score": None, "contribution": None})
+            if r.status == "not_performed":
+                unperformed_weight += m.weight
         else:
             score = round(r.score, 4)
             contribution = round(score * m.weight * 100, 2)
@@ -192,11 +205,24 @@ def collate(ctx: Context, fp: FirstPass, results: Dict[str, AnalyzerResult]) -> 
     if complete:
         grade_value = round(total, 1)
     else:
-        grade_value = round(total / measured_weight, 1) if measured_weight else 0.0
-        missing = [e["name"] for e in metrics_out if e["score"] is None]
-        flags.append({"type": "incomplete_grade",
-                      "detail": f"Not measured: {', '.join(missing)}. Grade is scaled over the remaining "
-                                f"weight; re-run when the missing tool is available before publishing."})
+        # Missing tools: scale over the measured weight. Tests that could not be
+        # performed stay in the denominator, so they never earn credit.
+        denominator = measured_weight + unperformed_weight
+        grade_value = round(total / denominator, 1) if denominator else 0.0
+        missing = [e["name"] for e in metrics_out if e["score"] is None and e["status"] != "not_performed"]
+        if missing:
+            flags.append({"type": "incomplete_grade",
+                          "detail": f"Not measured: {', '.join(missing)}. Grade is scaled over the remaining "
+                                    f"weight; re-run when the missing tool is available before publishing."})
+        unperformed = [e for e in metrics_out if e["status"] == "not_performed"]
+        if unperformed:
+            lost = round(sum(e["weight"] for e in unperformed) * 100, 1)
+            flags.append({"type": "tests_not_performed",
+                          "detail": f"Not performed: {', '.join(e['name'] for e in unperformed)} "
+                                    f"({lost:g} points). Their test assets could not be established "
+                                    f"from the rules and specification, so no credit was given. "
+                                    f"This is not the student's fault; add the missing assets and "
+                                    f"re-grade before publishing."})
     if fp.suspected_infinite_loop:
         flags.insert(0, {"type": "suspected_infinite_loop",
                          "detail": "No output on the sample input within the time limit; execution-based "
@@ -245,6 +271,10 @@ def collate(ctx: Context, fp: FirstPass, results: Dict[str, AnalyzerResult]) -> 
         "suggestions": ordered[:8],
         "tool_versions": tools.snapshot(rules.cc),
     }
+    if rules.overlay is not None:
+        report["asset_preparation"] = rules.overlay.report
+        for f in rules.overlay.report.get("flags", []):
+            flags.append(dict(f))
     if rules.include_usefulness_limitations:
         report["usefulness_limitations"] = usefulness_limitations()
     report["fingerprint"] = fingerprint(report)

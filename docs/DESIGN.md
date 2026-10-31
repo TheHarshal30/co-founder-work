@@ -329,7 +329,112 @@ Further known cases:
 
 ---
 
-## 7. Possible extensions
+## 7. Generated assets (`--generate-assets`, `autograder/assets/`)
+
+**Problem.** Most analyzers need instructor assets (tests, a reference
+solution, a generator, corner cases, a corpus). The new workflow has only
+`submission.c` and `rules.json`. An LLM can write inputs, but it cannot be
+trusted to know the right *outputs*, and the submission is the thing being
+judged, so it cannot be the answer key either.
+
+**Where it plugs in.** Before rules are loaded. `prepare.py` builds an
+`AssetOverlay` (defined in `rules.py`) that `load_rules` applies in memory:
+it points a metric's asset keys (`testset_dir`, `cases_file`, `generator`,
+`known_dir`) at a separate generated-assets folder, may drop probes that
+cannot be checked (`random_tests: 0`, `generated: []`, a missing `cases`
+family), and lists metrics that are `not_performed`. Weights, thresholds and
+limits are never touched, and the rules hash in the report is the hash of the
+instructor's file. Analyzers, the sandbox, scoring and reporting are reused
+unchanged; the coordinator only learned one new status.
+
+```
+rules.json ─► inventory (which analyzer needs what; what is missing?)
+                │ nothing missing ─► overlay = None ─► explicit workflow, same fingerprint
+                ▼
+           cache key = H(rules, statement, instructor assets, settings, model,
+                         generator + prompt version, compiler) ─► SQLite hit? ─┐
+                ▼ miss                                                         │
+  input spec ── LLM from the statement, or the instructor's; must parse every  │
+                instructor input; bounded retries with validator feedback      │
+  gen.py ────── fixed template interpreting the spec; determinism + validity   │
+  inputs ────── boundary families (deterministic) + LLM families; each parsed  │
+  outputs ───── instructor outputs │ instructor reference │ opt-in LLM oracle  │
+  known/ ────── LLM solutions (text only)                                      │
+                ▼                                                              │
+  per metric: prepared │ partial │ not_performed  ─► SQLite (+ rejected, events)
+                ▼                                                              │
+  materialise <cache>/assets/<key>/ ◄──────────────────────────────────────────┘
+                ▼
+  load_rules(rules, overlay) ─► grade() as before
+```
+
+**Why the LLM writes data, not code, for inputs.** The input spec is a small
+declarative format (lines, tokens, ranges, counts, sorted/distinct). It can be
+checked mechanically, it is checked against the instructor's own sample input,
+and the generator is our template that interprets it, so no model-written
+Python runs and nothing it says can become a shell command. A constraint the
+format cannot express (e.g. "the graph is connected") must be declared, and
+then the spec is rejected rather than used wrongly.
+
+**Why the oracle is opt-in and strict.** An LLM-written reference is only
+evidence. It is accepted only if it passes a static screen (standard headers,
+no process/file/network calls, no inline assembly), compiles and runs under
+the student sandbox, reproduces every instructor example output, and agrees
+with an independently written version (brute force vs. efficient) on every
+validation input. Example mismatches are never fed back to the model, so the
+examples stay an independent check. Any disagreement rejects the oracle; there
+is no majority vote. The report flags `llm_oracle_used`.
+
+**Why "not performed" is not rescaled.** A missing *tool* (no Ollama for
+readability) is rescaled and flagged, as before. A missing *answer key* is
+different: rescaling would award the correctness weight to whatever else the
+student scored. So `not_performed` weight stays in the denominator and earns
+nothing, and the flag says so. It is also distinct from `skipped` (the
+student's program did not compile or halt) and from `error` (an analyzer or
+reference crashed).
+
+**Why assets ignore the submission.** If generated tests depended on the
+submission, two students would be graded against different tests, and a batch
+would regenerate per student. The submission hash is recorded with each grade
+in the `grades` table instead.
+
+**Reproducibility.** Every LLM call goes through the cached client
+(temperature 0, fixed seed; the model digest salts the cache key when Ollama
+reports it). The validated bundle is stored in SQLite and re-materialised
+byte-for-byte; the report's `asset_preparation` section contains no paths,
+timings or cache-hit flags, so `verify --generate-assets` gives identical
+fingerprints across runs and machines.
+
+### Limitations of generated assets
+
+1. **No oracle, no correctness.** With only `rules.json` and a statement, and
+   without `sample_output`/`examples`, correctness and corner cases are *not
+   performed*. This is deliberate; it is the most common outcome for a bare
+   rules file.
+2. **The consensus oracle can still be wrong.** Two LLM programs can share the
+   same misreading of an ambiguous statement and agree on every input. Passing
+   two instructor examples does not rule that out. Treat `llm_oracle_used`
+   grades as provisional.
+3. **Inputs are only as good as the spec.** The spec format covers
+   whitespace-separated numbers, words, arrays and repeated lines. Problems
+   with structural constraints (trees, connected graphs, valid expressions) are
+   rejected, so their complexity and corner-case metrics are not performed.
+   Line structure is checked strictly, so `"7\n5"` is not accepted for a
+   one-line format even though `scanf` would read it.
+4. **Generated corner cases are not a proof of coverage.** Boundary families
+   are generic (min/max values, minimum size); the LLM's families depend on the
+   model. A missing family costs nothing to the student, so coverage can only
+   be lower than an instructor's set, never higher.
+5. **The cache key does not detect every model change.** Offline, or with
+   providers that report no digest (Groq), a silently updated model behind the
+   same name reuses the stored bundle.
+6. **Similarity without a class corpus** compares only against generated
+   LLM solutions; classmate copying cannot be detected from a single
+   submission.
+
+---
+
+## 8. Possible extensions
 
 * Worst-case generators (`gen.py` modes) to close limitation 2.
 * AST-based similarity (tree-sitter) to resist loop-to-recursion rewrites.

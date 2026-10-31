@@ -35,6 +35,27 @@ class Metric:
 
 
 @dataclass
+class AssetOverlay:
+    """Validated generated assets for a rules file whose own assets are missing
+    (built by ``autograder.assets``; the rules file itself is never edited).
+
+    Only asset locations change: ``params`` may point a metric's asset keys
+    (testset_dir, cases_file, generator, known_dir, ...) at the separate
+    generated-assets folder, or drop probes that cannot be checked (e.g.
+    ``random_tests: 0`` when no trusted oracle exists). Weights, thresholds and
+    limits are never touched. Metrics in ``not_performed`` are not run and earn
+    no credit. Everything here is recorded in the report under
+    ``asset_preparation``.
+    """
+
+    params: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    not_performed: Dict[str, str] = field(default_factory=dict)
+    reference: Optional[Path] = None
+    replace_reference: bool = False  # True: use ``reference`` even if it is None
+    report: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class Rules:
     path: Path
     problem: str
@@ -50,6 +71,7 @@ class Rules:
     include_usefulness_limitations: bool
     raw: Dict[str, Any]
     sha256: str
+    overlay: Optional[AssetOverlay] = None
 
     @property
     def base_dir(self) -> Path:
@@ -65,9 +87,10 @@ class Rules:
         return ""
 
 
-def load_rules(path, registry=None) -> Rules:
+def load_rules(path, registry=None, overlay: Optional[AssetOverlay] = None) -> Rules:
     """Parse and validate. ``registry`` (name -> analyzer class) enables
-    per-analyzer parameter checks; pass ``None`` to skip them."""
+    per-analyzer parameter checks; pass ``None`` to skip them. ``overlay``
+    supplies generated assets for a rules file whose own assets are missing."""
     path = Path(path).resolve()
     try:
         text = path.read_text()
@@ -106,7 +129,9 @@ def load_rules(path, registry=None) -> Rules:
 
     base = path.parent
     reference = None
-    if raw.get("reference") is not None:
+    if overlay is not None and overlay.replace_reference:
+        reference = overlay.reference
+    elif raw.get("reference") is not None:
         reference = (base / raw["reference"]).resolve()
         if not reference.exists():
             problems.append(f"reference solution not found: {raw['reference']}")
@@ -145,6 +170,8 @@ def load_rules(path, registry=None) -> Rules:
         if not isinstance(params, dict):
             problems.append(f"{where}: 'params' must be an object")
             continue
+        if overlay is not None and name in overlay.params:
+            params = {**params, **overlay.params[name]}
         metrics.append(Metric(name, analyzer, float(weight), params))
 
     total = sum(m.weight for m in metrics)
@@ -156,7 +183,7 @@ def load_rules(path, registry=None) -> Rules:
         metrics=metrics, cc=cc, compile_flags=compile_flags, ldflags=ldflags,
         sample_input=sample_input, reference=reference, statement=statement,
         include_usefulness_limitations=bool(raw.get("include_usefulness_limitations", True)),
-        raw=raw, sha256=hashlib.sha256(text.encode()).hexdigest(),
+        raw=raw, sha256=hashlib.sha256(text.encode()).hexdigest(), overlay=overlay,
     )
 
     if registry is not None:
@@ -169,6 +196,7 @@ def load_rules(path, registry=None) -> Rules:
                 load_plugin_file(base / plugin)
             except Exception as e:  # noqa: BLE001 - report any plugin failure as a rules problem
                 problems.append(f"plugin {plugin}: {type(e).__name__}: {e}")
+        skip = overlay.not_performed if overlay is not None else {}
         for m in metrics:
             cls = registry.get(m.analyzer)
             if cls is None:
@@ -176,6 +204,8 @@ def load_rules(path, registry=None) -> Rules:
                     f"metric '{m.name}': unknown analyzer '{m.analyzer}' "
                     f"(available: {', '.join(sorted(registry))})"
                 )
+                continue
+            if m.name in skip:  # its assets could not be established; it will not run
                 continue
             for msg in cls().validate(m.params, rules):
                 problems.append(f"metric '{m.name}' ({m.analyzer}): {msg}")

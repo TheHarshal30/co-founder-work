@@ -1,0 +1,30 @@
+{
+  "problem": "add_two_integers",
+  "time_limit_s": 1,
+  "memory_limit_mb": 64,
+  "sample_input": "7 5\n",
+  "sample_output": "12\n",
+  "compile": { "cc": "gcc", "flags": "-O2 -std=c11", "ldflags": "-lm" },
+  "asset_generation": {
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
+    "seed": 42,
+    "description": "Read two integers on a single line separated by whitespace and print their sum followed by a newline. Each integer fits in a 32-bit signed int (-2147483648 .. 2147483647), but their sum may not: print the exact mathematical sum.",
+    "examples": [
+      { "input": "2147483647 1\n", "output": "2147483648\n" },
+      { "input": "-3 -4\n", "output": "-7\n" }
+    ],
+    "oracle": "llm_consensus"
+  },
+  "metrics": [
+    { "name": "correctness", "analyzer": "io_tests", "weight": 0.25, "params": { "testset_dir": "tests/" } },
+    { "name": "syntax", "analyzer": "compiler_warnings", "weight": 0.10, "params": { "flags": "-Wall -Wextra -std=c11" } },
+    { "name": "modularity", "analyzer": "function_split", "weight": 0.10, "params": { "min_functions": 2 } },
+    { "name": "logical", "analyzer": "edge_case_runner", "weight": 0.15,
+      "params": { "cases": "all", "random_tests": 20, "sizes": [10, 1000, 2147483647], "seed": 7 } },
+    { "name": "complexity", "analyzer": "complexity_estimator", "weight": 0.10, "params": { "required": "O(1)", "sizes": [1, 10, 100] } },
+    { "name": "memory_safety", "analyzer": "sanitizer_run", "weight": 0.10, "params": { "flags": "-fsanitize=address,undefined" } },
+    { "name": "readability", "analyzer": "llm_review", "weight": 0.10, "params": { "provider": "ollama", "model": "qwen2.5:7b" } },
+    { "name": "originality", "analyzer": "similarity_flag", "weight": 0.10, "params": { "known_dir": "known/" } }
+  ]
+}

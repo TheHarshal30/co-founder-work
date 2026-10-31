@@ -87,6 +87,11 @@ Without Docker, replace `./grade.sh` with `autograder`. Useful flags:
 `--out DIR`, `--offline` (answer LLM metrics from the cache only, never call a
 model), `--cache DIR`, `--keep` (keep the temporary build folder for debugging).
 
+Every grade is also recorded in a local SQLite database,
+`.autograder-cache/autograder.sqlite3` (table `grades`: submission hash, rules
+hash, grade, fingerprint, full JSON report). The `.json`/`.txt` files are still
+written as before; pass `--no-db` to skip the database.
+
 The LLM answers behind `sample_outputs/` are committed in `.autograder-cache/`.
 So `./grade.sh batch ... --offline` reproduces the sample grades exactly on a
 machine without Ollama or a GPU.
@@ -139,6 +144,8 @@ Paths are relative to the rules file. Weights must sum to 1.00, and
 | `compile` | `{"cc", "flags", "ldflags"}` for the main build | gcc, `-O2 -std=c11`, `-lm` |
 | `plugins` | Extra analyzer files to load (see section 5) | `[]` |
 | `include_usefulness_limitations` | Append that section to every report | true |
+| `sample_output` | Instructor's output for `sample_input`; a trusted test in the generated-assets workflow | none |
+| `asset_generation` | Settings for `--generate-assets` (section 4) | see section 4 |
 
 ### Analyzers and their params
 
@@ -160,7 +167,98 @@ To catch LLM copies, run
 local model for solutions and stores them in `known/`. To write `.out` files
 from the reference solution, run `python scripts/make_expected.py problems/<p>`.
 
-## 4. How it works
+## 4. Grading from only `submission.c` + `rules.json` (generated assets)
+
+The workflow above needs a problem folder full of instructor assets: tests,
+`reference.c`, `gen.py`, `edge_cases.json`, `known/`. With `--generate-assets`
+the grader instead **detects which of those the configured analyzers need but
+the folder lacks, generates candidates, validates them independently, stores
+them in SQLite, and feeds the validated ones to the unchanged analyzers.**
+Without the flag nothing changes, and with the flag on a complete folder
+nothing is generated (same report fingerprint as without the flag).
+
+### Both workflows with Docker
+
+```sh
+# A. explicit assets (unchanged): every file the rules name must exist
+./grade.sh grade  problems/add_two_integers/submissions/add.c --rules problems/add_two_integers/rules.json
+./grade.sh batch  problems/max_subarray/submissions --rules problems/max_subarray/rules.json --out reports/max_subarray
+
+# B. only submission.c + rules.json: missing assets are generated + validated first
+./grade.sh prepare --rules examples/minimal_workflow/rules.json        # optional: generate/inspect, no grading
+./grade.sh grade  examples/minimal_workflow/submission.c --rules examples/minimal_workflow/rules.json --generate-assets
+./grade.sh batch  path/to/submissions --rules path/to/rules.json --generate-assets --out reports/x
+./grade.sh verify examples/minimal_workflow/submission.c --rules examples/minimal_workflow/rules.json --generate-assets --runs 3
+./grade.sh grade  examples/minimal_workflow/submission.c --rules examples/minimal_workflow/rules.json --generate-assets --offline   # replay only
+```
+
+Generation uses the same LLM client as the readability metric (Ollama on the
+host by default, reached through `host.docker.internal`). `--offline` never
+calls a model: it reuses stored bundles and cached answers, and anything it
+cannot reuse is reported as a generation failure.
+
+### What gets generated, and what never is
+
+| Asset | Needed by | How it is produced | How it is validated |
+|---|---|---|---|
+| input spec | everything below | instructor's `asset_generation.input_spec`, else the LLM reads the statement | strict schema; **must accept every instructor-written input** (`sample_input`, examples); otherwise retried with the validator's errors, at most `max_retries` times |
+| `gen.py` | `complexity_estimator`, `io_tests.generated`, `edge_case_runner.random_tests` | fixed template that interprets the spec (no model-written code runs) | deterministic (same seed, same output) and every output parses under the spec at every requested size |
+| corner-case inputs | `edge_case_runner`, `io_tests`, `sanitizer_run` | deterministic boundary families from the spec + LLM-proposed families | each input parsed against the spec; invalid ones are stored as *rejected* with the reason |
+| expected outputs | `io_tests`, `edge_case_runner` | instructor outputs, instructor `reference`, or (opt-in) the LLM consensus oracle | see below |
+| `known/` solutions | `similarity_flag` | LLM-written solutions | text only; never compiled or run |
+
+**Expected outputs are never taken from the submission.** They come only from
+(1) outputs the instructor wrote (`tests/*.out`, `"expected"`, `sample_output`,
+`asset_generation.examples`), (2) the instructor's `reference`, or (3) if the
+rules opt in with `"oracle": "llm_consensus"`, LLM-written programs that pass
+a static screen, compile and run in the same sandbox as student code,
+reproduce **every** instructor example (at least `min_examples_for_oracle`),
+and agree with each other (a brute-force and an efficient version) on every
+validation input. One disagreement rejects the oracle. If none of these exists,
+correctness and corner cases are reported **not performed**: they get no
+credit and are not hidden by rescaling (flag `tests_not_performed`), while
+metrics that need no expected output (complexity, memory safety, warnings,
+structure, readability, originality) still run.
+
+Each metric's preparation status is in the report (`asset_preparation`) and in
+the text report under "Test assets": `prepared`, `partial` (some probes could
+not be checked and were skipped, flag `tests_incomplete`), or `not_performed`.
+Generation failures (`asset_generation_failed`) are listed separately from the
+student's failures.
+
+### The `asset_generation` block (all keys optional)
+
+| Key | Meaning | Default |
+|---|---|---|
+| `provider`, `model`, `seed` | LLM used for generation | `ollama`, `qwen2.5:7b`, 42 |
+| `description` | Problem statement inline (used when there is no `statement` file) | none |
+| `input_spec` | Instructor-written input spec (see `autograder/assets/inputspec.py`); makes generators and boundary cases work without any LLM | none |
+| `examples` | `[{"input", "output"}]` trusted examples; they become tests | `[]` |
+| `oracle` | `"none"` or `"llm_consensus"` | `"none"` |
+| `oracle_candidates`, `min_examples_for_oracle` | Oracle programs to write (2-3) and instructor examples they must reproduce | 3, 2 |
+| `max_retries` | Attempts per LLM step | 3 |
+| `max_case_families`, `known_solutions` | LLM corner-case families; LLM solutions for `known/` | 6, 3 |
+| `max_input_bytes`, `oracle_max_input_bytes` | Largest generated input kept; largest input cross-checked by the oracle | 50000, 4000 |
+
+A complete example is [`examples/minimal_workflow/rules.json`](examples/minimal_workflow/rules.json).
+
+### Storage, caching, reproducibility
+
+Validated assets are stored in `.autograder-cache/autograder.sqlite3`
+(`asset_bundles`, `assets` with every validated / rejected / skipped /
+unavailable asset and its origin, `generation_events` with every LLM attempt)
+and materialised read-only-by-convention into
+`.autograder-cache/assets/<key>/`, never into the problem folder. The bundle
+key hashes the rules file, the statement, the instructor assets that exist,
+the generation settings and model, the generator and prompt versions and the
+compiler. Change any of them and the assets are regenerated; a new Ollama
+digest for the same model name also regenerates. A bundle built while the
+model was unreachable is retried on the next online run. Assets do **not**
+depend on the submission: every student in a batch is graded against the same
+tests, and a batch prepares once. If the materialised folder is edited, it is
+rebuilt from the database.
+
+## 5. How it works
 
 ```
 submission.c + rules.json
@@ -179,7 +277,7 @@ submission.c + rules.json
 [`docs/DESIGN.md`](docs/DESIGN.md) explains each analyzer's method and why it
 was chosen.
 
-## 5. Adding a metric without editing the agent
+## 6. Adding a metric without editing the agent
 
 Write an analyzer file next to your rules and list it under `"plugins"`. A
 complete example is [`examples/plugins/line_budget.py`](examples/plugins/line_budget.py):
@@ -201,18 +299,18 @@ class LineBudget(Analyzer):
                "params": { "max_code_lines": 30 } } ]
 ```
 
-## 6. Tests
+## 7. Tests
 
 ```sh
-.venv/bin/python -m pytest -q        # 41 tests on the host (1 is Linux-only and skips on macOS)
+.venv/bin/python -m pytest -q        # 68 tests on the host (1 is Linux-only and skips on macOS)
 ./scripts/test_in_docker.sh          # same suite inside the Linux image (valgrind, LSan, RLIMIT_AS)
 ```
 
-## 7. Repository layout
+## 8. Repository layout
 
 ```
 autograder/
-  cli.py            grade / batch / verify / check-rules / tools
+  cli.py            grade / batch / verify / prepare / check-rules / tools
   coordinator.py    the main agent: first pass, dispatch, collation, fingerprint
   rules.py          load + validate the rules file, hash problem assets
   sandbox.py        run untrusted binaries under CPU/memory/output/wall limits
@@ -224,11 +322,14 @@ autograder/
   ctokens.py        small C lexer (normalisation, readability facts)
   report.py         JSON + student text report
   analyzers/        one file per analyzer (+ base.py: contract and registry)
+  assets/           --generate-assets: inventory, LLM generation + retries, input specs,
+                    oracle validation, SQLite store, materialisation (prepare.py is the pipeline)
   data/usefulness_limitations.json
 problems/           two example problems with rules, tests, reference, submissions
 sample_outputs/     the agent's reports on every sample submission (Docker toolchain)
 scripts/            make_expected.py, generate_known_solutions.py, test_in_docker.sh
 examples/plugins/   an analyzer added from the rules file only
+examples/minimal_workflow/  submission.c + rules.json only, for --generate-assets
 tests/              pytest suite
 docs/DESIGN.md      design, method defence, usefulness & limitations
 ```

@@ -77,11 +77,14 @@ class LLMClient:
         temperature: float = 0.0,
         seed: int = 42,
         schema: Optional[dict] = None,
+        cache_salt: Optional[str] = None,
     ) -> LLMAnswer:
         request = {
             "provider": provider, "model": model, "temperature": temperature,
             "seed": seed, "messages": messages, "schema": schema,
         }
+        if cache_salt:  # e.g. the model digest: new weights must not replay old answers
+            request["cache_salt"] = cache_salt
         key = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()
         path = self.cache_dir / key[:2] / f"{key}.json"
         if path.exists():
@@ -109,6 +112,13 @@ class LLMClient:
                                    "model_digest": digest}, indent=2))
         os.replace(tmp, path)  # atomic: concurrent graders never see half a file
         return LLMAnswer(data, raw, key, False, digest)
+
+    def model_identity(self, provider: str, model: str) -> Optional[str]:
+        """Digest of the model weights when the provider reports one (Ollama),
+        else None. Offline mode never touches the network."""
+        if self.offline or provider != "ollama":
+            return None
+        return self._ollama_digest(model)
 
     # -- providers --------------------------------------------------------
     def _ollama(self, model, messages, temperature, seed, schema) -> str:
