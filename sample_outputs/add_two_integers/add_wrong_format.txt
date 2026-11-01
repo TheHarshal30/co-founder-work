@@ -2,24 +2,30 @@
 Problem: add_two_integers
 Overall grade: 62.5 / 100
 
-Metric         Weight     Score  Verdict
-correctness        20      0/20  0/10 tests pass. First failure: test 01
-                                 (wrong answer).
-syntax             10    9.0/10  1 warning(s): line 8: ignoring return value
-                                 of 'scanf' declared with attribute
-                                 'warn_unused_result' [-Wunused-result]
-structure          10     10/10  2 function(s), all within complexity 8 and
-                                 length 40; no static-analysis findings.
-modularity         10    8.5/10  main() still holds 88% of the code.
-logical            10      0/10  Fails on: negatives, zero, int_overflow,
-                                 random_stress.
-complexity         10     10/10  O(1) confirmed (required O(1)).
-memory_safety      10     10/10  No memory or undefined-behaviour errors on 23
-                                 inputs.
-readability        10      5/10  5/10 -- Useless comments on lines 3 and 5; No
-                                 comments explaining the program's purpose
-originality        10     10/10  Max similarity 0.61 (threshold 0.85); not
-                                 flagged.
+Metric         Weight     Score  Status        Verdict
+correctness        20      0/20  OK            0/10 tests pass. First failure:
+                                               test 01 (wrong answer).
+syntax             10    9.0/10  OK            1 warning(s): line 8: ignoring
+                                               return value of 'scanf'
+                                               declared with attribute
+                                               'warn_unused_result' [-Wunused-
+                                               result]
+structure          10     10/10  OK            2 function(s), all within
+                                               complexity 8 and length 40; no
+                                               static-analysis findings.
+modularity         10    8.5/10  OK            main() still holds 88% of the
+                                               code.
+logical            10      0/10  OK            Fails on: negatives, zero,
+                                               int_overflow, random_stress.
+complexity         10     10/10  OK            O(1) confirmed (required O(1)).
+memory_safety      10     10/10  OK            No memory or undefined-
+                                               behaviour errors on 23 inputs.
+readability        10      5/10  OK            5/10 -- Useless comments on
+                                               lines 3 and 5; No comments
+                                               explaining the program's
+                                               purpose
+originality        10     10/10  OK            Max similarity 0.69 (threshold
+                                               0.85); not flagged.
 
 --- Where you failed ---
 test 01  (correctness, wrong answer)
@@ -44,6 +50,22 @@ test 01  (correctness, wrong answer)
 - Keep main() short: read input, call helpers, print the result. [modularity]
 - Fix the warning at line 8: ignoring return value of 'scanf' declared with
   attribute 'warn_unused_result' [-Wunused-result] [syntax]
+
+--- Analyzer findings ---
+  - correctness: 0/10 tests passed
+  - syntax: 1 warning(s), 0 error(s) with -Wall -Wextra -Werror -std=c11 -O2
+  - syntax: line 8: ignoring return value of 'scanf' declared with attribute
+    'warn_unused_result'
+  - modularity: 2 function(s) (expected at least 2)
+  - logical: corner cases: negatives 0/3, zero 0/3, int_overflow 0/4,
+    random_stress 0/20
+  - complexity: estimated O(1), required O(1) (instructions: n=1: 99,811,
+    n=10: 99,829, n=100: 99,980)
+  - memory_safety: 23 input(s) run under -fsanitize=address,undefined; 0
+    issue(s)
+  - originality: NOT FLAGGED: 14 distinctive fingerprints (minimum 8),
+    compared against 10 file(s); closest submissions/add_clean.c at 0.69
+    sharing 12 fingerprints
 
 --- Usefulness & limitations of this evaluation ---
 Useful for:
@@ -110,7 +132,7 @@ Limits of this report:
      (comment ratio, single-letter names), and spot-check a sample of scores
      by hand.
 
-Report fingerprint: sha256:48e0f16c35417e9c79b5892e2cd795975ca2d5e4d3f56b4a8697ea5ba661932a
+Report fingerprint: sha256:922120baa2dc2ee82c8e2715fed5ad7aa659869163f2890a33ad02dd2fbec0c5
 Rules: sha256:474204f08f31a3d8...  Assets: sha256:6b906fad5b8bd674...
-Tools: platform Linux-aarch64, python 3.12.3, valgrind 3.22.0, cppcheck 2.13.0, lizard 1.17.10
+Tools: cppcheck 2.13.0, lizard 1.17.10, platform Linux-aarch64, python 3.12.3, valgrind 3.22.0
 Compiler: gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0

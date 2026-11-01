@@ -6,20 +6,27 @@ the same answers, offline too. An answer that fails its validator is retried at
 most ``max_retries`` times with the validator's complaints appended; after that
 the step is reported as a *generation failure* (never as a student failure).
 
-The submission under evaluation is never shown to the model: generated tests
-must not inherit the student's misreading of the problem.
+What the model sees is a *problem brief* built from the instructor's material
+only: the problem title, the statement (if any), limits, the sample and any
+example outputs the instructor chose to publish. The submission is never shown
+to the model when it writes tests, oracles or solutions -- generated tests must
+not inherit the student's misreading of the problem. The one exception is the
+input FORMAT: when the instructor gave no input at all, the submission's
+input-reading statements are offered as a hint, and the spec is reported as
+inferred that way.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..llm import LLMClient, LLMUnavailable
 from .inputspec import check_spec
 
-PROMPT_VERSION = "asset-prompts-v1"
+PROMPT_VERSION = "asset-prompts-v2"
 
 Check = Callable[[Dict[str, Any]], Tuple[Any, List[str]]]
 
@@ -84,6 +91,51 @@ class Generator:
         return "rejected" if self.last_outcome == "rejected" else "unavailable"
 
 
+# -- the problem brief ----------------------------------------------------------------
+def humanize_title(problem: str) -> str:
+    return re.sub(r"[_\-]+", " ", str(problem)).strip() or "unknown problem"
+
+
+def problem_brief(title: str, statement: str, shown_examples: List[Tuple[str, str]],
+                  sample_inputs: List[str], limits: Dict[str, Any], hints: Dict[str, Any]) -> str:
+    """Everything the instructor published about the problem, as one text.
+    Held-out examples are deliberately not part of it: they validate the
+    oracle independently."""
+    parts = [f"Problem title: {title}"]
+    if statement.strip():
+        parts.append("Statement:\n" + statement.strip())
+    else:
+        parts.append("Statement: (none given; infer the task from the title, the rules and the examples)")
+    lim = []
+    if limits.get("time_limit_s"):
+        lim.append(f"time limit {limits['time_limit_s']:g} s")
+    if limits.get("memory_limit_mb"):
+        lim.append(f"memory limit {limits['memory_limit_mb']} MB")
+    if limits.get("required_complexity"):
+        lim.append(f"required time complexity {limits['required_complexity']}")
+    if lim:
+        parts.append("Limits: " + ", ".join(lim) + ".")
+    if hints.get("case_families"):
+        parts.append("Corner cases the instructor wants tested: " + ", ".join(hints["case_families"]))
+    if hints.get("compare"):
+        parts.append(f"Output comparison: {hints['compare']}")
+    for i, (inp, out) in enumerate(shown_examples, 1):
+        parts.append(f"Example {i} input:\n{inp.rstrip()}\nExample {i} expected output:\n{out.rstrip()}")
+    shown = {i for i, _ in shown_examples}
+    for i, s in enumerate([s for s in sample_inputs if s not in shown], 1):
+        parts.append(f"Sample input {i} (expected output not given):\n{s.rstrip()}")
+    return "\n\n".join(parts)
+
+
+_READ_CALL = re.compile(r"\b(scanf|fscanf|sscanf|getchar|fgets|getline|getc|fgetc|fread|gets)\s*\(")
+
+
+def input_format_hint(source: str, max_lines: int = 15) -> str:
+    """The statements a C program uses to read stdin (a format hint, nothing more)."""
+    lines = [l.strip() for l in source.splitlines() if _READ_CALL.search(l)]
+    return "\n".join(lines[:max_lines])
+
+
 # -- input specification ----------------------------------------------------------
 SPEC_SYSTEM = """You describe the INPUT FORMAT of a programming problem as JSON, so a tool can generate and check test inputs.
 Reply with JSON only: {"spec": SPEC}. SPEC = {"version": 1, "lines": [LINE, ...], "unsupported_constraints": [strings]}.
@@ -92,21 +144,16 @@ TOKEN = {"name": identifier, "type": "int" | "float" | "word", ...}:
 - int: "min", "max" (integers, or the name of an earlier int); optional "count": N or earlier int name (an array of that many values on this line); optional "distinct": true, "sorted": "asc" | "desc"; optional "size": true on the ONE int that is the main input size (e.g. n).
 - float: "min", "max" numbers, "decimals".
 - word: "charset" (lower, upper, alpha, digits, alnum), "min_len", "max_len".
-Use exactly the bounds stated in the problem. If a constraint cannot be expressed (e.g. "the graph is connected"), list it in "unsupported_constraints" instead of ignoring it.
+Use exactly the bounds stated in the problem. When no bounds are stated, use the natural C type range (e.g. a 32-bit int: -2147483648..2147483647) and keep array sizes at most 200000.
+Every sample input shown must match your spec. If a constraint cannot be expressed (e.g. "the graph is connected"), list it in "unsupported_constraints" instead of ignoring it.
 Example for "first line n (1<=n<=100), second line n integers |a_i|<=1000":
 {"spec": {"version": 1, "lines": [{"tokens": [{"name": "n", "type": "int", "min": 1, "max": 100, "size": true}]}, {"tokens": [{"name": "a", "type": "int", "min": -1000, "max": 1000, "count": "n"}]}], "unsupported_constraints": []}}"""
 
 SPEC_SCHEMA = {"type": "object", "properties": {"spec": {"type": "object"}}, "required": ["spec"]}
 
 
-def problem_text(statement: str, sample_inputs: List[str]) -> str:
-    text = statement.strip() or "(no statement)"
-    for i, s in enumerate(sample_inputs, 1):
-        text += f"\n\nInstructor sample input {i}:\n{s}"
-    return text
-
-
-def propose_input_spec(gen: Generator, statement: str, instructor_inputs: List[str]) -> Optional[dict]:
+def propose_input_spec(gen: Generator, brief: str, instructor_inputs: List[str],
+                       format_hint: str = "") -> Optional[dict]:
     """An input spec that is well-formed AND accepts every instructor-written
     input (the independent check: the instructor's own inputs must parse)."""
     from .inputspec import InputSpec
@@ -120,11 +167,14 @@ def propose_input_spec(gen: Generator, statement: str, instructor_inputs: List[s
         for i, s in enumerate(instructor_inputs, 1):
             errs = parsed.validate(s)
             if errs:
-                problems.append(f"instructor sample input {i} does not match the spec: {errs[0]}")
+                problems.append(f"instructor input {i} does not match the spec: {errs[0]}")
         return spec, problems
 
-    messages = [{"role": "system", "content": SPEC_SYSTEM},
-                {"role": "user", "content": problem_text(statement, instructor_inputs)}]
+    user = brief
+    if format_hint:
+        user += ("\n\nNo instructor input is available. A student's program reads its input with these "
+                 "statements (they may be wrong; use them only as a hint about the layout):\n" + format_hint)
+    messages = [{"role": "system", "content": SPEC_SYSTEM}, {"role": "user", "content": user}]
     return gen.ask("input_spec", messages, SPEC_SCHEMA, check)
 
 
@@ -143,7 +193,7 @@ CASES_SCHEMA = {
 }
 
 
-def propose_case_families(gen: Generator, statement: str, spec: dict, instructor_inputs: List[str],
+def propose_case_families(gen: Generator, brief: str, spec: dict,
                           wanted: Optional[List[str]], max_families: int) -> Optional[List[dict]]:
     if wanted:
         ask = (f"Write exactly these families (use these names): {', '.join(wanted)}. "
@@ -170,8 +220,7 @@ def propose_case_families(gen: Generator, statement: str, spec: dict, instructor
         return out[: max(max_families, len(wanted or []))], problems
 
     messages = [{"role": "system", "content": CASES_SYSTEM},
-                {"role": "user", "content": f"{problem_text(statement, instructor_inputs)}\n\n"
-                                            f"Input format specification:\n{json.dumps(spec)}\n\n{ask}"}]
+                {"role": "user", "content": f"{brief}\n\nInput format specification:\n{json.dumps(spec)}\n\n{ask}"}]
     return gen.ask("case_families", messages, CASES_SCHEMA, check)
 
 
@@ -185,11 +234,12 @@ ORACLE_STYLES = [
 ]
 
 
-def propose_program(gen: Generator, step: str, statement: str, instructor_inputs: List[str], style: str,
+def propose_program(gen: Generator, step: str, brief: str, style: str,
                     check_code: Callable[[str], List[str]], seed_offset: int) -> Optional[str]:
     system = ("You write a complete C11 program that reads the input from stdin and prints exactly the required "
-              "output to stdout, nothing else (no prompts). Use only the standard C library. "
-              'Reply with JSON only: {"code": "<the full program>"}.')
+              "output to stdout, nothing else (no prompts). Use only the standard C library. When the statement "
+              "does not say otherwise, compute the mathematically exact answer (use long long where a sum or "
+              'product may overflow int). Reply with JSON only: {"code": "<the full program>"}.')
 
     def check(data):
         code = data.get("code")
@@ -197,6 +247,7 @@ def propose_program(gen: Generator, step: str, statement: str, instructor_inputs
             return None, ["'code' must be a non-empty string"]
         return code, check_code(code)
 
+    # the style comes first: it is what makes the candidates independent versions
     messages = [{"role": "system", "content": system},
-                {"role": "user", "content": f"{style}\n\n{problem_text(statement, instructor_inputs)}"}]
+                {"role": "user", "content": f"{style}\n\n{brief}"}]
     return gen.ask(step, messages, CODE_SCHEMA, check, seed_offset=seed_offset)

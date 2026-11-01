@@ -328,8 +328,11 @@
       "evidence": {
         "method": "winnowing k=5 w=4, Dice overlap",
         "threshold": 0.85,
-        "fingerprints": 34,
+        "min_fingerprints": 8,
+        "min_shared_fingerprints": 8,
+        "fingerprints": 32,
         "ignored_reference_fingerprints": 33,
+        "ignored_boilerplate_fingerprints": 2,
         "compared_against": 9,
         "top_matches": [
           {
@@ -337,24 +340,37 @@
             "kind": "submission",
             "source": "classmate",
             "similarity": 1.0,
-            "shared_lines": "8, 10-11, 14-16, 18, 20-21, 23-25, 27, 29, 32, 36-37"
+            "raw_similarity": 1.0,
+            "fingerprints": 32,
+            "shared_fingerprints": 32,
+            "shared_lines": "8, 10-11, 14-16, 18, 20-21, 23-25, 27, 29, 32, 37",
+            "verdict": "flagged"
           },
           {
             "file": "submissions/s02_zero_init.c",
             "kind": "submission",
             "source": "classmate",
-            "similarity": 0.323,
-            "shared_lines": "14, 27, 29, 32, 37"
+            "similarity": 0.333,
+            "raw_similarity": 0.323,
+            "fingerprints": 22,
+            "shared_fingerprints": 9,
+            "shared_lines": "14, 27, 29, 32, 37",
+            "verdict": "below_threshold"
           },
           {
-            "file": "submissions/s03_brute_force.c",
-            "kind": "submission",
-            "source": "classmate",
-            "similarity": 0.133,
-            "shared_lines": "14, 25, 29, 32"
+            "file": "known/llm_qwen2.5-7b_2.c",
+            "kind": "known",
+            "source": "LLM-generated (qwen2.5:7b)",
+            "similarity": 0.136,
+            "raw_similarity": 0.107,
+            "fingerprints": 12,
+            "shared_fingerprints": 3,
+            "shared_lines": "20-21",
+            "verdict": "below_threshold"
           }
         ],
-        "max_similarity": 1.0
+        "max_similarity": 1.0,
+        "verdict": "flagged"
       }
     },
     {
@@ -398,7 +414,7 @@
     {
       "metric": "originality",
       "type": "suspected_plagiarism",
-      "detail": "1.00 similar to submissions/s06_copy.c (classmate); shared lines 8, 10-11, 14-16, 18, 20-21, 23-25, 27, 29, 32, 36-37. Needs human review.",
+      "detail": "1.00 similar to submissions/s06_copy.c (classmate); 32 shared fingerprints, shared lines 8, 10-11, 14-16, 18, 20-21, 23-25, 27, 29, 32, 37. Needs human review.",
       "similarity": 1.0,
       "match": "submissions/s06_copy.c"
     }
@@ -479,23 +495,23 @@
       }
     ]
   },
-  "fingerprint": "sha256:dbe7f8749d287216b0526628b6f2c33c173bf0d4f079dc5ecd9f136597eadff1",
+  "fingerprint": "sha256:2eecb3e32c65fd8db4cdb628d7e0f00c88e69c93507d5df4ed1b52a84282d9ce",
   "meta": {
     "report_version": 1,
-    "generated_at": "2026-10-19T13:26:03Z",
-    "elapsed_s": 0.76,
+    "generated_at": "2026-11-01T13:16:11Z",
+    "elapsed_s": 0.78,
     "timings_s": {
-      "first_pass": 0.021,
-      "readability": 0.001,
-      "modularity": 0.014,
+      "first_pass": 0.039,
+      "readability": 0.002,
+      "syntax": 0.02,
       "safe_io": 0.0,
-      "syntax": 0.017,
-      "structure": 0.019,
-      "originality": 0.019,
-      "correctness": 0.132,
-      "logical": 0.188,
-      "complexity": 0.599,
-      "memory_safety": 0.727
+      "modularity": 0.025,
+      "structure": 0.05,
+      "originality": 0.075,
+      "correctness": 0.123,
+      "logical": 0.175,
+      "complexity": 0.667,
+      "memory_safety": 0.722
     },
     "llm_cache": {
       "hits": 1,

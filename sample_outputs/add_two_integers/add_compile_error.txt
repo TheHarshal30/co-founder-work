@@ -2,23 +2,32 @@
 Problem: add_two_integers
 Overall grade: 27.0 / 100  (PARTIAL REPORT)
 
-Metric         Weight     Score  Verdict
-correctness        20      0/20  Skipped: the program does not compile
-syntax             10      0/10  Does not compile: line 4: expected '=', ',',
-                                 ';', 'asm' or '__attribute__' before 'scanf'
-structure          10     10/10  1 function(s), all within complexity 8 and
-                                 length 40; no static-analysis findings.
-modularity         10      3/10  Only main() is defined; all logic lives in
-                                 one function.
-logical            10      0/10  Skipped: the program does not compile
-complexity         10      0/10  Skipped: the program does not compile
-memory_safety      10      0/10  Skipped: the program does not compile
-readability        10    4.0/10  4/10 -- Uses single-letter identifiers (a,
-                                 b); No comments to explain the code
-originality        10     10/10  Not judged: only 6 distinctive fingerprints
-                                 (minimum 8); the code is almost all the shape
-                                 every solution shares. Closest:
-                                 known/llm_qwen2.5-7b_1.c (0.67).
+Metric         Weight     Score  Status        Verdict
+correctness        20      0/20  SKIPPED       Skipped: the program does not
+                                               compile
+syntax             10      0/10  OK            Does not compile: line 4:
+                                               expected '=', ',', ';', 'asm'
+                                               or '__attribute__' before
+                                               'scanf'
+structure          10     10/10  OK            1 function(s), all within
+                                               complexity 8 and length 40; no
+                                               static-analysis findings.
+modularity         10      3/10  OK            Only main() is defined; all
+                                               logic lives in one function.
+logical            10      0/10  SKIPPED       Skipped: the program does not
+                                               compile
+complexity         10      0/10  SKIPPED       Skipped: the program does not
+                                               compile
+memory_safety      10      0/10  SKIPPED       Skipped: the program does not
+                                               compile
+readability        10    4.0/10  OK            4/10 -- Uses single-letter
+                                               identifiers (a, b); No comments
+                                               to explain the code
+originality        10     10/10  OK            Not judged: only 2 distinctive
+                                               fingerprints (minimum 8); the
+                                               code is almost all the shape
+                                               every solution shares. Closest:
+                                               known/llm_qwen2.5-7b_1.c
 
 --- Flags ---
 - [compile_failed] compile failed: line 4: expected '=', ',', ';', 'asm' or
@@ -33,6 +42,19 @@ originality        10     10/10  Not judged: only 6 distinctive fingerprints
 - Add comments explaining the purpose of the program and each function or
   block [readability]
 - Ensure consistent indentation throughout the code [readability]
+
+--- Analyzer findings ---
+  - syntax: 0 warning(s), 2 error(s) with -Wall -Wextra -Werror -std=c11 -O2
+  - modularity: 1 function(s) (expected at least 2)
+  - originality: INSUFFICIENT EVIDENCE: 2 distinctive fingerprints (minimum
+    8), compared against 10 file(s); closest known/llm_qwen2.5-7b_1.c at 0.00
+    sharing 0 fingerprints
+
+--- Not performed / skipped, and why ---
+  - correctness (SKIPPED): Skipped: the program does not compile
+  - logical (SKIPPED): Skipped: the program does not compile
+  - complexity (SKIPPED): Skipped: the program does not compile
+  - memory_safety (SKIPPED): Skipped: the program does not compile
 
 --- Usefulness & limitations of this evaluation ---
 Useful for:
@@ -99,7 +121,7 @@ Limits of this report:
      (comment ratio, single-letter names), and spot-check a sample of scores
      by hand.
 
-Report fingerprint: sha256:11ca7819484fdb19d12095b202d53ce8f3bdbe70223762aba5a699fb4f87d2b4
+Report fingerprint: sha256:d3032151de2890cb66309a7b122e36393326b7b7b5ab94a36e677fd0609fca4e
 Rules: sha256:474204f08f31a3d8...  Assets: sha256:6b906fad5b8bd674...
-Tools: platform Linux-aarch64, python 3.12.3, valgrind 3.22.0, cppcheck 2.13.0, lizard 1.17.10
+Tools: cppcheck 2.13.0, lizard 1.17.10, platform Linux-aarch64, python 3.12.3, valgrind 3.22.0
 Compiler: gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0

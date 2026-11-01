@@ -97,7 +97,7 @@ for Docker, and `autograder <cmd>` for plain Python.
 | Need | For | Install |
 |---|---|---|
 | git | cloning | preinstalled on most systems |
-| Docker | option A | macOS: [Docker Desktop](https://www.docker.com/products/docker-desktop/) or `brew install colima docker && colima start --cpu 4 --memory 6`. Linux: Docker Engine (`curl -fsSL https://get.docker.com \| sh`, then add your user to the `docker` group). Windows: Docker Desktop with the WSL 2 backend; run every command inside WSL. |
+| Docker | option A | macOS: [Docker Desktop](https://www.docker.com/products/docker-desktop/) or `brew install colima docker && colima start --cpu 4 --memory 6`. Linux: Docker Engine (`curl -fsSL https://get.docker.com \| sh`, then add your user to the `docker` group). Windows: Docker Desktop (WSL 2 backend); run `./grade.sh` from WSL or Git Bash, or `.\grade.ps1` from PowerShell. The project folder is mounted, so `.autograder-cache\` (database, generated assets) appears in the project folder on Windows. |
 | Python 3.9+ and a C compiler | option B | macOS: `xcode-select --install`. Debian/Ubuntu: `sudo apt install python3 python3-venv gcc` |
 | cppcheck, valgrind | option B, optional | `brew install cppcheck` / `sudo apt install cppcheck valgrind` (valgrind: Linux only) |
 | Ollama + a model | optional: readability, LLM explanations, generated assets | [ollama.com/download](https://ollama.com/download), then `ollama pull qwen2.5:7b` (about 4.7 GB) |
@@ -144,8 +144,10 @@ What `grade.sh` does on every call, so nothing about it is surprising:
 |---|---|
 | Mounts the current folder at `/work` and runs as your user id | Reports and caches land in your folder, owned by you |
 | Sets `AUTOGRADER_CACHE=/work/.autograder-cache` | LLM answers, the SQLite database and generated assets survive between runs |
-| Points `OLLAMA_HOST` at `host.docker.internal:11434` | The container reaches Ollama on your machine (override with `AUTOGRADER_OLLAMA_HOST`) |
-| Forwards `GROQ_API_KEY` | Lets you use Groq instead of Ollama |
+| Points `OLLAMA_HOST` at `host.docker.internal:11434` and adds `--add-host=host.docker.internal:host-gateway` | The container reaches Ollama on your machine, on Linux too (override with `AUTOGRADER_OLLAMA_HOST`); check with `./grade.sh llm-check` |
+| Forwards `AUTOGRADER_LLM_PROVIDER`/`_MODEL`, `GROQ_API_KEY`, `OPENAI_COMPAT_*` | Choose the generation model, or use Groq / an OpenAI-compatible server instead of Ollama |
+| Passes the host folder as `AUTOGRADER_HOST_WORKDIR` | The web UI shows generated-file paths you can open on your machine |
+| On Git Bash (Windows): sets `MSYS_NO_PATHCONV=1`, mounts `pwd -W` | Git Bash would otherwise rewrite `/work` into `C:/Program Files/Git/work` |
 | `--pids-limit 512 --memory 4g` | A fork bomb or memory hog in a submission cannot take down the host |
 | For `serve`: publishes `127.0.0.1:${AUTOGRADER_PORT:-8000}` | The UI is reachable from your machine only |
 
@@ -205,7 +207,7 @@ explains the overflow.
 **Grade with only `submission.c` + `rules.json`:**
 
 ```sh
-./grade.sh grade examples/minimal_workflow/submission.c --rules examples/minimal_workflow/rules.json --generate-assets
+./grade.sh grade examples/bare_workflow/submission.c --rules examples/bare_workflow/rules.json --generate-assets
 ```
 
 The output starts with an asset-preparation summary: what was missing, what
@@ -229,6 +231,7 @@ and which metrics could not be performed. Section 7 explains it.
 | `verify SUB.c --rules R.json [--runs 3]` | Grade N times and require identical fingerprints | 0 reproducible; 2 not |
 | `prepare --rules R.json` | Generate and validate missing assets only; no grading | 0; 2 on invalid rules |
 | `serve [--port 8000] [--host 127.0.0.1] [--root .]` | Start the local web UI | runs until Ctrl-C |
+| `llm-check [--rules R.json] [--llm-model M]` | Is the asset-generation LLM reachable, and is the model pulled? Prints the fix if not | 0 ok; 1 not available |
 | `check-rules R.json` | Validate a rules file (weights, analyzers, params, paths) | 0 valid; 2 invalid |
 | `tools [--cc gcc]` | Print the toolchain versions and analyzers | 0 |
 
@@ -239,6 +242,7 @@ and which metrics could not be performed. Section 7 explains it.
 | `--offline` | all grading commands, prepare, serve | Never call an LLM; answer from the cache and stored bundles only |
 | `--cache DIR` | all grading commands, prepare, serve | Cache root (default `$AUTOGRADER_CACHE` or `.autograder-cache`) |
 | `--no-db` | grade, batch, verify, prepare | Do not record grades in SQLite (`prepare` still needs the database) |
+| `--llm-provider`, `--llm-model` | grading commands, prepare, serve, llm-check | LLM for asset generation; overrides the rules' `asset_generation` (default: `$AUTOGRADER_LLM_PROVIDER`/`$AUTOGRADER_LLM_MODEL`, then the rules, then `ollama`/`qwen2.5:7b`) |
 | `--keep` | grade | Keep the temporary build folder for debugging |
 | `--quiet` | grade | Do not print the text report |
 
@@ -254,8 +258,8 @@ autograder serve --port 8000 --offline    # without Docker; "offline" ticked by 
 
 | Tab | What you do there |
 |---|---|
-| **Grade** | Pick a `rules.json` under the repository (or upload one), paste or upload a `.c` file, and tick *Generate missing assets* / *Offline* if needed. You get the full report: score per metric, flags, failing inputs with expected vs. actual output plus WHY/FIX, suggestions, the generated-asset status, the fingerprint, the plain-text student report and a JSON download. |
-| **Assets** | Every generated asset bundle. For each metric: prepared, partial or not performed. It also lists generation failures, every asset (validated, rejected with the reason, skipped, unavailable) with its content, and every LLM attempt with the validator's verdict. |
+| **Grade** | Pick a `rules.json` under the repository (or upload one), paste or upload a `.c` file, and tick *Generate missing assets* / *Offline* if needed. With generation on, choose the LLM provider and model and press *Check* to see whether it is reachable. You get the full report: score and status per metric, flags, failing inputs with expected vs. actual output plus WHY/FIX, suggestions, the generated-asset status with every skip and its reason, where the assets are stored, and the fingerprint. **Download TXT Report** saves the plain-text report (scores, verdicts, analyzer findings, asset-generation results, not-performed/skipped reasons); **Download JSON** saves the full machine report. |
+| **Assets** | Every generated asset bundle, with its folder under `.autograder-cache/generated/`. For one bundle: the per-metric decisions and skips, the oracle verdict per candidate, generation failures, and three sections: **Instructor-provided** material, **Generated** assets (validated, rejected with the reason, skipped, unavailable), and **Validated and used for grading** files. Each file shows its path, origin, validation result, where it is stored on your machine, and its content on click. Every LLM attempt is listed with the validator's verdict. |
 | **History** | Every grade from the CLI or the UI, read from SQLite. Re-grades of the same submission under the same rules and assets are checked for identical fingerprints ("3 runs identical" or "2 different results"). |
 
 The UI is one static HTML file served by a Python standard-library server
@@ -353,89 +357,141 @@ python scripts/generate_known_solutions.py problems/<p> --count 3     # fill kno
 ## 7. Grading from only `submission.c` + `rules.json`
 
 The workflow in section 6 needs a folder full of instructor assets. With
-`--generate-assets` the grader instead:
+`--generate-assets` (or the UI's **Generate missing assets** box) a bare
+`rules.json` is enough: **no `asset_generation` block, statement, tests,
+reference, generator or known solutions are required.** The grader:
 
 1. **detects** which assets the configured analyzers need but the folder
-   lacks (`autograder/assets/prepare.py: find_missing`),
-2. **generates** candidates,
-3. **validates** each one independently, and rejects the failures with a reason,
-4. **stores** everything in SQLite and writes the validated files to a separate
-   folder,
-5. **feeds** them to the unchanged analyzers.
+   lacks (`autograder/assets/prepare.py: find_missing`);
+2. **infers** the problem from what the instructor published: the problem
+   title (`"problem": "add_two_integers"` -> "add two integers"), the statement
+   or `asset_generation.description` if any, limits, the required complexity,
+   the corner-case family names in the rules, `sample_input`/`sample_output`
+   and any examples;
+3. **generates** an input spec, a generator, boundary and LLM corner cases,
+   three independent oracle programs (brute force, efficient, careful), and
+   LLM solutions for the originality corpus;
+4. **validates** each one independently and rejects failures with the reason;
+5. **stores** everything in SQLite and in
+   `.autograder-cache/generated/<problem>/<generation_id>/`;
+6. **feeds** the validated files to the unchanged analyzers, and reuses them on
+   every later run until the problem or the generation settings change.
 
 Without the flag nothing changes. **With the flag on a complete folder nothing
 is generated**, and the fingerprint is the same as without the flag.
 
 ```sh
-./grade.sh prepare --rules examples/minimal_workflow/rules.json                      # inspect, no grading
-./grade.sh grade  examples/minimal_workflow/submission.c --rules examples/minimal_workflow/rules.json --generate-assets
+./grade.sh llm-check                                                                   # Ollama reachable, model pulled?
+./grade.sh grade  examples/bare_workflow/submission.c --rules examples/bare_workflow/rules.json --generate-assets
+./grade.sh prepare --rules examples/bare_workflow/rules.json                           # inspect, no grading
 ./grade.sh batch  path/to/submissions --rules path/to/rules.json --generate-assets --out reports/x
-./grade.sh verify examples/minimal_workflow/submission.c --rules examples/minimal_workflow/rules.json --generate-assets --runs 3
+./grade.sh verify examples/bare_workflow/submission.c --rules examples/bare_workflow/rules.json --generate-assets --runs 3
 ```
+
+[`examples/bare_workflow/rules.json`](examples/bare_workflow/rules.json) is the
+whole problem: a title, limits, one sample with its output, and the metrics.
+[`examples/minimal_workflow/rules.json`](examples/minimal_workflow/rules.json)
+shows the optional `asset_generation` overrides.
 
 ### What is generated, and how it is validated
 
 | Asset | Needed by | Produced by | Validated by |
 |---|---|---|---|
-| input spec | everything below | the instructor's `asset_generation.input_spec`, or else the LLM reading the statement | a strict schema check, and it **must accept every instructor-written input**. On failure the LLM is retried with the validator's errors, at most `max_retries` times. |
-| `gen.py` | `complexity_estimator`, `io_tests.generated`, `edge_case_runner.random_tests` | a fixed template that interprets the spec. **No model-written code runs.** | determinism (same seed, same output), and every output parses under the spec at every requested size |
-| corner-case inputs | `edge_case_runner`, `io_tests`, `sanitizer_run` | deterministic boundary families (min/max values, minimum size, ...) plus LLM-proposed families | each input is parsed against the spec; invalid ones are stored as *rejected* with the reason |
-| expected outputs | `io_tests`, `edge_case_runner` | instructor outputs, the instructor's `reference`, or the opt-in LLM consensus oracle | see below |
+| input spec | everything below | `asset_generation.input_spec` if given; else the LLM reading the problem brief | a strict schema check, and it **must accept every instructor-written input** (sample, examples, test inputs). On failure the LLM is retried with the validator's errors, at most `max_retries` times. With no instructor input at all, the submission's `scanf`/`fgets` lines are offered as a *format hint* only; the report flags it (`input_format_from_submission`). |
+| `gen.py` | `complexity_estimator`, `io_tests.generated`, `edge_case_runner.random_tests` | a fixed template that interprets the spec. **No model-written code runs.** | determinism (same seed, same output), and every output parses under the spec at every requested size. Requested sizes outside the spec's range are dropped and reported; fewer than 3 left -> complexity not performed, with the reason. |
+| corner-case inputs | `edge_case_runner`, `io_tests`, `sanitizer_run` | deterministic boundary families (min/max values, minimum size, ...) plus LLM-proposed families (the rules' `cases` names are requested by name) | each input is parsed against the spec; invalid ones are stored as *rejected* with the reason |
+| oracle programs + reference | `io_tests`, `edge_case_runner` | three LLM programs in different styles | see below; kept under `oracles/`, the accepted one becomes `reference/reference.c` |
 | `known/` solutions | `similarity_flag` | LLM-written solutions | text only; never compiled or run |
 
 ### Where expected outputs may come from
 
-**The submission is never the answer key, and it is never shown to the model.**
+**The submission is never the answer key, and it is never shown to the model**
+(except the input-format hint above, which never reaches the oracle).
 Trusted sources, in order:
 
 1. outputs the instructor wrote (`tests/*.out`, `"expected"` in
    `edge_cases.json`, `sample_output`, `asset_generation.examples`);
 2. the instructor's `reference` solution;
-3. only if the rules opt in (`"oracle": "llm_consensus"`): LLM-written programs
-   that pass all of these checks:
-   * a static screen: standard headers only, and no process, file or network
-     calls;
-   * they compile and run in the same sandbox as student code;
-   * they reproduce **every** instructor example (at least
-     `min_examples_for_oracle`);
-   * an independent brute-force version and an efficient version agree on
-     every validation input.
+3. by default (`"oracle": "auto"`; `"none"` turns it off): three LLM-written
+   programs (brute force, efficient, careful), each of which must
+   * pass a static screen: standard headers only, and no process, file or
+     network calls;
+   * compile and run in the same sandbox as student code;
+   * reproduce **every** instructor example output (the published sample is in
+     the prompt; `asset_generation.examples` and instructor `tests/*.out` are
+     **held out** and never shown, not even on failure);
+   * not crash on any valid input (a crashing candidate is dropped, not the
+     whole oracle).
 
-   One disagreement rejects the oracle.
+   An input gets an expected output only if **every** remaining candidate prints
+   the same thing (no majority vote). At least 2 must remain when instructor
+   examples anchor them; **all 3** when there is no example output at all
+   (flag `llm_oracle_unanchored`). If they agree on every validation input,
+   the efficient one becomes the generated reference and random stress tests
+   run against it (`llm_consensus_oracle`). If they disagree anywhere, only the
+   agreed inputs are used and nothing is trusted for unseen inputs
+   (`llm_consensus_inputs`); each skipped input lists what each candidate
+   printed.
 
 If none of these exists, correctness and corner cases are reported **not
-performed**. They earn **no credit** and are not hidden by rescaling the
-grade (flag `tests_not_performed`). Metrics that need no expected output
-(complexity, memory safety, warnings, structure, readability, originality)
-still run.
+performed**, with the precise reason (LLM unreachable at which address, which
+candidate failed which example, which inputs the candidates disagree on, ...).
+They earn **no credit** and are not hidden by rescaling the grade (flag
+`tests_not_performed`). Metrics that need no expected output (complexity,
+memory safety, warnings, structure, readability, originality) still run.
 
 ### Reading the result
 
 | Status / flag | Meaning |
 |---|---|
 | `prepared` | The metric runs entirely on validated generated assets |
-| `partial` + `tests_incomplete` | Some probes could not be checked and were skipped; the score covers only what ran |
+| `partial` + `tests_incomplete` | Some probes could not be checked and were skipped; the score covers only what ran. Every skip and its reason is in the report and the TXT download |
 | `not_performed` + `tests_not_performed` | No trustworthy assets; no credit, and the weight stays in the denominator |
-| `asset_generation_failed` | A generation step failed (LLM unreachable, every answer rejected, ...). This is **not the student's fault**, and is listed separately from student failures |
+| `asset_generation_failed` | A generation step failed (LLM unreachable, every answer rejected, oracle rejected, ...). This is **not the student's fault**, and is listed separately from student failures |
 | `llm_oracle_used` | Expected outputs came from the consensus oracle: evidence, not proof. Review before publishing |
+| `llm_oracle_unanchored` | No instructor example output exists; the oracle is pure consensus of 3 programs. Add `sample_output` |
+| `input_format_from_submission` | No instructor input exists; the input format leaned on the submission's reading code. Add `sample_input` |
 
-### The `asset_generation` block (all keys optional)
+### Where the generated files are
+
+```text
+.autograder-cache/generated/<problem>/<generation_id>/
+  manifest.json              what was decided per metric, the oracle verdict, the LLM used
+  validation/report.json     every asset: status, origin, reason (rejected ones with content)
+  spec/input_spec.json       the validated input format
+  generators/gen.py          deterministic generator (fixed template + the spec)
+  tests/<metric>/*.in|.out   correctness tests (instructor examples + generated)
+  edge_cases/<metric>.json   corner cases with their expected outputs
+  inputs/replay_inputs.json  inputs replayed under the sanitizers
+  oracles/<style>.c          every oracle candidate, accepted or not
+  reference/reference.c      the generated reference (full consensus only)
+  known/*.c                  LLM solutions for the originality check
+```
+
+`<generation_id>` is the first 16 hex digits of the bundle key (a hash of the
+rules, statement, instructor files, generation settings including the model,
+generator and prompt versions, and the compiler), so any change to the problem
+or the generation configuration gives a new folder and an unchanged one is
+reused. The instructor's folder is never written to. SQLite is the record; the
+folder is rebuilt from it if a file is edited or deleted. In Docker the
+project folder is mounted at `/work`, so these files land in the project's
+`.autograder-cache/` on the host (Windows included); the Assets tab shows the
+host path of every file.
+
+### The `asset_generation` block (optional; every key overrides a default)
 
 | Key | Meaning | Default |
 |---|---|---|
-| `provider`, `model`, `seed` | LLM used for generation | `ollama`, `qwen2.5:7b`, 42 |
+| `provider`, `model`, `seed` | LLM used for generation (`--llm-provider`/`--llm-model`, the UI fields or `AUTOGRADER_LLM_PROVIDER`/`AUTOGRADER_LLM_MODEL` override these) | `ollama`, `qwen2.5:7b`, 42 |
 | `description` | Problem statement inline, used when there is no `statement` file | none |
 | `input_spec` | Instructor-written input spec (format: `autograder/assets/inputspec.py`). Generators and boundary cases then work without any LLM | none |
-| `examples` | `[{"input", "output"}]` trusted examples; they become tests | `[]` |
-| `oracle` | `"none"` or `"llm_consensus"` | `"none"` |
-| `oracle_candidates`, `min_examples_for_oracle` | Oracle programs to write (2-3), and instructor examples they must reproduce | 3, 2 |
+| `examples` | `[{"input", "output"}]` trusted examples, held out from the model; they become tests and anchor the oracle | `[]` |
+| `oracle` | `"auto"`, `"llm_consensus"` (same) or `"none"` | `"auto"` |
+| `oracle_candidates` | Oracle programs to write (2-3) | 3 |
+| `min_examples_for_oracle` | Refuse the oracle unless at least this many instructor example outputs exist | 0 |
 | `max_retries` | Attempts per LLM step | 3 |
 | `max_case_families`, `known_solutions` | LLM corner-case families; LLM solutions for `known/` | 6, 3 |
 | `max_input_bytes`, `oracle_max_input_bytes` | Largest generated input kept; largest input cross-checked by the oracle | 50000, 4000 |
-
-A complete example is [`examples/minimal_workflow/rules.json`](examples/minimal_workflow/rules.json).
-To get correctness tests from a bare rules file, give at least `sample_output`
-or `examples`. For more than those, add a `reference`, or opt in to the oracle.
 
 ---
 
@@ -461,11 +517,14 @@ submission.c -> Context (context.py: copies source, caches builds + reference ou
 rules.json -> find_missing (per analyzer) -> nothing missing? -> overlay = None (explicit workflow)
   -> bundle key = H(rules, statement, instructor assets, settings, model, generator+prompt version, compiler)
   -> SQLite has a validated bundle with that key? -> reuse
-  -> else: input spec -> gen.py -> input pool (boundary + LLM) -> expected outputs -> known/
+  -> else: problem brief (title, statement, limits, sample, examples)
+           -> input spec -> gen.py -> input pool (boundary + LLM) + random-stress inputs
+           -> 3 oracle programs -> screen, compile, held-out examples, per-input consensus
+           -> expected outputs -> known/
            each step: generate -> validate -> accept | retry with errors | reject (recorded)
-  -> per metric: ready | prepared | partial | not_performed
+  -> per metric: ready | prepared | partial | not_performed (with the reason)
   -> SQLite (bundle, every asset incl. rejected, every LLM attempt)
-  -> materialise .autograder-cache/assets/<key>/ -> AssetOverlay -> load_rules
+  -> materialise .autograder-cache/generated/<problem>/<generation_id>/ -> AssetOverlay -> load_rules
 ```
 
 | Component | File | Responsibility |
@@ -492,9 +551,10 @@ rules.json -> find_missing (per analyzer) -> nothing missing? -> overlay = None 
 | Limits are set by a `/bin/sh ulimit` prelude, not Python `preexec_fn` | Analyzers run in threads; `preexec_fn` can deadlock a forked child | A deadlocked child looks like a timeout: a random TLE |
 | Time-limit verdicts use CPU time from `wait4` | Parallel analyzers compete for CPU | A correct program waiting for a core is marked too slow |
 | The generated-asset LLM writes **data** (an input spec), never generator code | Data can be checked mechanically; the generator is our template | Model-written Python would run with the grader's permissions |
-| The oracle needs instructor examples **and** agreement between independent programs; example mismatches are never fed back | The examples must stay an independent check | The model "fixes" its oracle to the examples and the check proves nothing |
+| The oracle needs agreement between independent programs on **each** input, plus every instructor example; held-out examples are never shown or fed back | The examples must stay an independent check; a disagreement marks an ambiguous input | The model "fixes" its oracle to the examples and the check proves nothing; a majority vote picks the common bug |
 | `not_performed` weight stays in the denominator | No credit for tests that never ran | Rescaling hands the correctness weight to whatever else the student scored |
-| Generated assets ignore the submission | Every student is graded against the same tests; a batch prepares once | Tests differ per student, and a batch regenerates per student |
+| Generated assets ignore the submission (only exception: the format hint when the instructor gave no input, which is then part of the key) | Every student is graded against the same tests; a batch prepares once | Tests differ per student, and a batch regenerates per student |
+| Originality ignores the reference's and common I/O skeletons' fingerprints, and needs 8 distinctive fingerprints on both sides and 8 shared before FLAGGED | Normalisation erases names, so every small program is the same token stream | Two honest `a+b` programs score 1.00 and get flagged; below the bar it is SUSPECT, never an accusation |
 | The report's `asset_preparation` has no paths, timings or cache-hit flag | The fingerprint must match across machines and re-runs | `verify` fails on a second run only because the cache was warm |
 
 [`docs/DESIGN.md`](docs/DESIGN.md) defends each analyzer's method in depth and
@@ -507,16 +567,20 @@ lists concrete cases where the verdict is wrong.
 | Variable | Read by | Default | Purpose |
 |---|---|---|---|
 | `AUTOGRADER_CACHE` | CLI, UI | `.autograder-cache` | Cache root: LLM answers, SQLite database, generated assets |
-| `OLLAMA_HOST` | LLM client | `127.0.0.1:11434` | Where Ollama listens (set by `grade.sh` inside Docker) |
-| `AUTOGRADER_OLLAMA_HOST` | `grade.sh` | `http://host.docker.internal:11434` | Ollama address as seen from the container |
+| `OLLAMA_HOST` | LLM client | `127.0.0.1:11434`; inside the Docker image `host.docker.internal:11434` | Where Ollama listens |
+| `AUTOGRADER_OLLAMA_HOST` | `grade.sh`, `grade.ps1` | `http://host.docker.internal:11434` | Ollama address as seen from the container |
+| `AUTOGRADER_LLM_PROVIDER`, `AUTOGRADER_LLM_MODEL` | asset generation (CLI, UI, Docker) | rules, then `ollama` / `qwen2.5:7b` | Which LLM generates assets; overrides the rules' `asset_generation`. Part of the bundle key and recorded in the report |
 | `GROQ_API_KEY` | LLM client (`provider: groq`) | none | Groq instead of Ollama; forwarded into Docker |
-| `OPENAI_COMPAT_BASE_URL`, `OPENAI_COMPAT_API_KEY` | LLM client (`provider: openai_compat`) | none | Any OpenAI-compatible server. **Not forwarded by `grade.sh`**: add `-e` flags or use option B |
+| `OPENAI_COMPAT_BASE_URL`, `OPENAI_COMPAT_API_KEY` | LLM client (`provider: openai_compat`) | none | Any OpenAI-compatible server; forwarded into Docker |
+| `AUTOGRADER_HOST_WORKDIR` | web UI | set by `grade.sh`/`grade.ps1` | Host path of `/work`, so the Assets tab shows paths you can open |
 | `AUTOGRADER_IMAGE` | `grade.sh` | `autograder:latest` | Image to run |
 | `AUTOGRADER_PORT` | `grade.sh serve` | 8000 | Host port for the web UI |
 
 Everything that affects *what is graded* lives in `rules.json`, never in
-environment variables. That way the rules hash in each report fully
-identifies the grading criteria.
+environment variables, with one exception: the model that *generates* assets
+can be chosen at run time. It is part of the bundle key and is recorded in the
+report's `asset_preparation.llm`, so the rules hash plus the bundle key
+identify the grading criteria.
 
 ---
 
@@ -527,7 +591,7 @@ identifies the grading criteria.
 | `reports/` | `<name>.json`, `<name>.txt`, `summary.csv` | no (gitignored) |
 | `.autograder-cache/llm/` | LLM answer cache, one JSON file per request hash | yes for sample problems: it makes `--offline` reproduce `sample_outputs/` exactly |
 | `.autograder-cache/autograder.sqlite3` | tables `grades`, `asset_bundles`, `assets`, `generation_events` | no (gitignored) |
-| `.autograder-cache/assets/<key>/` | Generated assets copied out of the database for the analyzers | no (gitignored); rebuilt from SQLite if edited or deleted |
+| `.autograder-cache/generated/<problem>/<generation_id>/` | Generated assets by kind (spec, generators, tests, edge cases, oracles, reference, known, validation report) | no (gitignored); rebuilt from SQLite if edited or deleted |
 
 Inspect the database with any SQLite client:
 
@@ -578,7 +642,7 @@ For the same reason, the web UI refuses `plugins` in uploaded rules.
 ## 12. Tests
 
 ```sh
-python -m pytest -q                  # 77 tests on the host (1 is Linux-only and skips on macOS)
+python -m pytest -q                  # 101 tests (1 is Linux-only and skips on macOS)
 ./scripts/test_in_docker.sh          # the same suite inside the Linux image (valgrind, LSan, RLIMIT_AS)
 ```
 
@@ -589,6 +653,7 @@ python -m pytest -q                  # 77 tests on the host (1 is Linux-only and
 | `tests/test_sandbox.py` | Limits, timeouts, output floods, crashes |
 | `tests/test_units.py` | Comparison, explanations, complexity fitting, sanitizer parsing, similarity |
 | `tests/test_assets.py` | Generated assets with a mocked LLM: backward compatibility, validation, retries, oracle acceptance and rejection, caching and invalidation, tamper recovery, failure reporting |
+| `tests/test_autogen.py` | A bare rules.json (no `asset_generation`): inference, oracle validation, corner cases executed with trusted outputs, complexity on a generated generator, originality thresholds, persistence and reuse, the TXT report, Ollama connectivity against a fake server |
 | `tests/test_web.py` | Web API over a real local server, upload restrictions, history, bundles |
 
 Tests need a C compiler but no LLM and no network.
@@ -604,9 +669,11 @@ Tests need a C compiler but no LLM and no network.
 | Docker container cannot reach Ollama (Linux / colima) | Ollama listens on 127.0.0.1 only, which the container cannot reach | Start it with `OLLAMA_HOST=0.0.0.0 ollama serve`, or set `AUTOGRADER_OLLAMA_HOST`. *Docker Desktop on macOS usually works as is; this fix is from Docker networking behaviour, not tested on every setup.* |
 | `nondeterministic_measurement` flag; `verify` says NOT REPRODUCIBLE | No valgrind (macOS / option B), so complexity uses CPU time | Grade in Docker |
 | structure / modularity show "Analyzer error" (option B) | `lizard` not installed (plain `python3` instead of the venv) | `pip install -e '.[dev]'` and use the venv's `python` |
-| correctness "Not performed" with `--generate-assets` | No trusted expected outputs | Add `sample_output` / `asset_generation.examples`, a `reference`, or `"oracle": "llm_consensus"` with at least 2 examples |
+| correctness / logical "Not performed" with `--generate-assets` | No trusted expected outputs; the feedback says why (LLM unreachable, oracle rejected, ...) | Run `./grade.sh llm-check`; add `sample_output` so the oracle is anchored; or add a `reference` |
+| logical "partial", "oracle candidates disagree" | The problem is ambiguous on those inputs (e.g. overflow semantics) | Say it in a statement or `description`, or add an example output for that case |
 | complexity "Not performed: requested size(s) ... outside the input's allowed range" | The rules' `sizes` exceed the bounds in the statement / input spec | Use sizes within the problem's limits |
-| `asset_generation_failed: input_spec` | No statement/description, no sample input to validate against, or every LLM answer rejected | Add `statement` or `asset_generation.description` and `sample_input`, or write `input_spec` yourself |
+| `asset_generation_failed: input_spec` | LLM unreachable, or every LLM answer was rejected (e.g. it did not accept the sample input) | Check the reason in the report; add `sample_input` and a `description`, or write `input_spec` yourself |
+| `LLM unavailable: ... does not have model 'x'` | The model is not pulled in Ollama | `ollama pull x` on the Ollama host, or pick another with `--llm-model` / the UI |
 | Generated assets look stale | A dependency outside the key changed (e.g. a silently updated Groq model) | Delete the bundle: `sqlite3 .autograder-cache/autograder.sqlite3 "DELETE FROM asset_bundles WHERE bundle_key LIKE '<prefix>%';"` and re-run |
 | `./grade.sh: file not found` for a file outside the repository | Only the current folder is mounted into the container | Copy the file under the repository and use a relative path |
 | Permission denied writing `.autograder-cache` or `reports` | The folder was created by root (e.g. an earlier `sudo docker run`) | `sudo chown -R "$USER" .autograder-cache reports` |
@@ -642,7 +709,8 @@ autograder/
   data/usefulness_limitations.json
 problems/           two example problems with rules, tests, reference, submissions
 examples/plugins/   an analyzer added from the rules file only
-examples/minimal_workflow/  submission.c + rules.json only, for --generate-assets
+examples/bare_workflow/     submission.c + a bare rules.json, for --generate-assets
+examples/minimal_workflow/  the same with optional asset_generation overrides
 sample_outputs/     the agent's reports on every sample submission (Docker toolchain)
 scripts/            make_expected.py, generate_known_solutions.py, test_in_docker.sh
 tests/              pytest suite

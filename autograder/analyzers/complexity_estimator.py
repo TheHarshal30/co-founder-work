@@ -74,8 +74,8 @@ def estimate_class(sizes: Sequence[int], costs: Sequence[float],
     errors: Dict[str, float] = {}
     for name, f in CLASSES:
         xs = [f(n) for n in sizes]
-        if any(math.isinf(x) or x > 1e300 for x in xs):
-            continue
+        if any(math.isinf(x) or x > 1e150 for x in xs):
+            continue  # its least-squares sums would overflow a float (2^n at n ~ 512..999 did)
         errors[name] = round(_fit(xs, costs)[2], 6)
     if lo > 0 and (hi - lo) / lo <= flat_tolerance:
         return "O(1)", errors

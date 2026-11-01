@@ -4,7 +4,7 @@
   "problem": "add_two_integers",
   "rules_hash": "sha256:474204f08f31a3d865baa78a39d51909343822153fb3c099800f7a8eaac4f001",
   "assets_hash": "sha256:6b906fad5b8bd674d4ab36121d1b6e5a630e2d4b0cfa72eb49e2d1f288ea1752",
-  "grade": 69.8,
+  "grade": 79.8,
   "grade_complete": true,
   "partial": false,
   "first_pass": {
@@ -374,14 +374,17 @@
       "analyzer": "similarity_flag",
       "weight": 0.1,
       "status": "ok",
-      "score": 0.0,
-      "contribution": 0.0,
-      "feedback": "FLAGGED for review: highly similar to known/llm_qwen2.5-7b_2.c (LLM-generated (qwen2.5:7b), 1.00).",
+      "score": 1.0,
+      "contribution": 10.0,
+      "feedback": "Not flagged (SUSPECT, insufficient evidence): 1.00 similar to known/llm_qwen2.5-7b_2.c, but the submission has only 7 distinctive fingerprints beyond the shape every solution shares (minimum 8).",
       "evidence": {
         "method": "winnowing k=5 w=4, Dice overlap",
         "threshold": 0.85,
-        "fingerprints": 12,
+        "min_fingerprints": 8,
+        "min_shared_fingerprints": 8,
+        "fingerprints": 7,
         "ignored_reference_fingerprints": 13,
+        "ignored_boilerplate_fingerprints": 5,
         "compared_against": 10,
         "top_matches": [
           {
@@ -389,24 +392,37 @@
             "kind": "known",
             "source": "LLM-generated (qwen2.5:7b)",
             "similarity": 1.0,
-            "shared_lines": "4-5, 8-11, 14, 17"
+            "raw_similarity": 1.0,
+            "fingerprints": 7,
+            "shared_fingerprints": 7,
+            "shared_lines": "8-11, 14",
+            "verdict": "suspect"
           },
           {
-            "file": "known/llm_qwen2.5-7b_1.c",
-            "kind": "known",
-            "source": "LLM-generated (qwen2.5:7b)",
-            "similarity": 0.444,
-            "shared_lines": "4-5, 14"
-          },
-          {
-            "file": "submissions/add.c",
+            "file": "submissions/add_clean.c",
             "kind": "submission",
             "source": "classmate",
-            "similarity": 0.444,
-            "shared_lines": "4-5, 14"
+            "similarity": 0.286,
+            "raw_similarity": 0.235,
+            "fingerprints": 21,
+            "shared_fingerprints": 4,
+            "shared_lines": "8-9",
+            "verdict": "below_threshold"
+          },
+          {
+            "file": "submissions/add_copied.c",
+            "kind": "submission",
+            "source": "classmate",
+            "similarity": 0.286,
+            "raw_similarity": 0.235,
+            "fingerprints": 21,
+            "shared_fingerprints": 4,
+            "shared_lines": "8-9",
+            "verdict": "below_threshold"
           }
         ],
-        "max_similarity": 1.0
+        "max_similarity": 1.0,
+        "verdict": "suspect"
       }
     }
   ],
@@ -430,18 +446,13 @@
   "flags": [
     {
       "metric": "originality",
-      "type": "suspected_external_copy",
-      "detail": "1.00 similar to known/llm_qwen2.5-7b_2.c (LLM-generated (qwen2.5:7b)); shared lines 4-5, 8-11, 14, 17. Needs human review.",
+      "type": "similarity_suspect",
+      "detail": "SUSPECT, not flagged: 1.00 similar to known/llm_qwen2.5-7b_2.c (LLM-generated (qwen2.5:7b)), but the submission has only 7 distinctive fingerprints beyond the shape every solution shares (minimum 8). Small programs naturally share this shape; look only if other evidence points the same way.",
       "similarity": 1.0,
       "match": "known/llm_qwen2.5-7b_2.c"
     }
   ],
   "suggestions": [
-    {
-      "metric": "originality",
-      "points_lost": 10.0,
-      "suggestion": "This code closely matches another submission or a known source and will be reviewed by the instructor. If you worked with someone or used a source, say so."
-    },
     {
       "metric": "modularity",
       "points_lost": 7.0,
@@ -527,22 +538,22 @@
       }
     ]
   },
-  "fingerprint": "sha256:7e4c34768e7ea183b5ba64ffe433800701387980e8a9302ebb2eb31751ae374a",
+  "fingerprint": "sha256:c2b701fac603df66bfcbee2fb6fac80029900497028a47525767b0993caf47cd",
   "meta": {
     "report_version": 1,
-    "generated_at": "2026-10-19T13:26:01Z",
-    "elapsed_s": 0.83,
+    "generated_at": "2026-11-01T13:16:09Z",
+    "elapsed_s": 0.94,
     "timings_s": {
-      "first_pass": 0.02,
+      "first_pass": 0.038,
       "modularity": 0.0,
-      "readability": 0.001,
-      "structure": 0.006,
-      "syntax": 0.012,
-      "originality": 0.014,
-      "correctness": 0.045,
-      "logical": 0.05,
-      "complexity": 0.475,
-      "memory_safety": 0.806
+      "readability": 0.003,
+      "structure": 0.016,
+      "originality": 0.017,
+      "syntax": 0.024,
+      "logical": 0.061,
+      "correctness": 0.063,
+      "complexity": 0.406,
+      "memory_safety": 0.892
     },
     "llm_cache": {
       "hits": 1,

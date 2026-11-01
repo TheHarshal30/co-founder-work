@@ -14,7 +14,25 @@ advance and see whether a submission is a near-copy of one.
 
 Fingerprints also found in the instructor's reference solution are ignored
 (``ignore_reference``), so the shape every correct answer must share does not
-count as copying. Programs with too little distinctive code are not judged.
+count as copying. So are those of a few built-in input/output skeletons
+(``ignore_boilerplate``): after names and literals are erased, every small
+program reads ``int I ( ) { int I , I ; I ( S , & I , & I ) ; ...`` and would
+otherwise bring ~10 "distinctive" fingerprints that every student shares.
+
+Evidence threshold. Small programs (add two numbers) share most of their code
+with every other correct answer, so a high similarity between them proves
+nothing. A match is FLAGGED only when all of these hold:
+
+* similarity >= ``flag_threshold`` (default 0.85),
+* BOTH programs have at least ``min_fingerprints`` distinctive fingerprints
+  (default 8), and
+* they share at least ``min_shared_fingerprints`` of them (default: the same 8).
+
+A match above the threshold that misses the evidence bar -- or whose raw
+similarity (boilerplate included) is above it while the submission has too few
+distinctive fingerprints -- is reported as SUSPECT: a ``similarity_suspect``
+flag for the instructor, no score penalty, no accusation in the student's
+feedback.
 
 A flag is a request for human review, not a verdict.
 """
@@ -23,6 +41,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
@@ -52,6 +71,25 @@ def fingerprints(source: str, k: int = 5, window: int = 4) -> Dict[int, int]:
         if h not in selected:
             selected[h] = line
     return selected
+
+
+# Shapes every beginner's solution shares (names and literals are erased before
+# fingerprinting, so these stand for all programs of the same shape).
+BOILERPLATE = [
+    'int main(){int a,b;scanf("%d %d",&a,&b);printf("%d\\n",a+b);return 0;}',
+    'int main(void){long long a,b;if(scanf("%lld %lld",&a,&b)!=2)return 1;printf("%lld\\n",a+b);return 0;}',
+    'int main(){int n;scanf("%d",&n);for(int i=0;i<n;i++){int x;scanf("%d",&x);}printf("%d\\n",n);return 0;}',
+    'int main(void){int n;if(scanf("%d",&n)!=1)return 1;long long s=0;'
+    'for(int i=0;i<n;i++){long long x;scanf("%lld",&x);s+=x;}printf("%lld\\n",s);return 0;}',
+]
+
+
+@lru_cache(maxsize=8)
+def boilerplate_fingerprints(k: int = 5, window: int = 4) -> frozenset:
+    out: Set[int] = set()
+    for src in BOILERPLATE:
+        out |= set(fingerprints(src, k, window))
+    return frozenset(out)
 
 
 def dice(a: Set[int], b: Set[int]) -> float:
@@ -91,18 +129,25 @@ class SimilarityFlag(Analyzer):
         t = params.get("flag_threshold", 0.85)
         if not isinstance(t, (int, float)) or not 0 < t <= 1:
             problems.append("'flag_threshold' must be in (0, 1]")
+        for key in ("min_fingerprints", "min_shared_fingerprints"):
+            v = params.get(key)
+            if v is not None and (not isinstance(v, int) or isinstance(v, bool) or v < 1):
+                problems.append(f"'{key}' must be an integer >= 1")
         return problems
 
     def run(self, ctx, params):
         k, w = int(params.get("k", 5)), int(params.get("window", 4))
         threshold = float(params.get("flag_threshold", 0.85))
         min_fp = int(params.get("min_fingerprints", 8))
+        min_shared = int(params.get("min_shared_fingerprints", min_fp))
 
         ignore: Set[int] = set()
         if params.get("ignore_reference", True) and ctx.rules.reference:
             ignore |= set(fingerprints(ctx.rules.reference.read_text(errors="replace"), k, w))
+        common: Set[int] = set(boilerplate_fingerprints(k, w)) if params.get("ignore_boilerplate", True) else set()
         mine_lines = fingerprints(ctx.source, k, w)
-        mine = set(mine_lines) - ignore
+        mine_raw = set(mine_lines) - ignore
+        mine = mine_raw - common
 
         labels: Dict[str, str] = {}
         candidates: List[Tuple[Path, str]] = []
@@ -121,23 +166,62 @@ class SimilarityFlag(Analyzer):
         for path, kind in candidates:
             if path.resolve() == me:
                 continue
-            theirs = set(fingerprints(path.read_text(errors="replace"), k, w)) - ignore
+            theirs_raw = set(fingerprints(path.read_text(errors="replace"), k, w)) - ignore
+            theirs = theirs_raw - common
             sim = dice(mine, theirs)
             shared = mine & theirs
-            matches.append({
+            m = {
                 "file": _rel(path, ctx.rules.base_dir), "kind": kind,
                 "source": labels.get(path.name, "classmate" if kind == "submission" else "known solution"),
-                "similarity": round(sim, 3),
+                "similarity": round(sim, 3), "raw_similarity": round(dice(mine_raw, theirs_raw), 3),
+                "fingerprints": len(theirs), "shared_fingerprints": len(shared),
                 "shared_lines": line_ranges([mine_lines[h] for h in shared]),
-            })
+            }
+            m["verdict"] = _verdict(m, len(mine), threshold, min_fp, min_shared)
+            matches.append(m)
         matches.sort(key=lambda m: (-m["similarity"], m["file"]))
         top = matches[: int(params.get("max_shown", 3))]
         best = top[0] if top else None
         evidence = {"method": f"winnowing k={k} w={w}, Dice overlap", "threshold": threshold,
+                    "min_fingerprints": min_fp, "min_shared_fingerprints": min_shared,
                     "fingerprints": len(mine), "ignored_reference_fingerprints": len(ignore),
+                    "ignored_boilerplate_fingerprints": len(mine_raw & common),
                     "compared_against": len(matches), "top_matches": top,
                     "max_similarity": best["similarity"] if best else 0.0}
 
+        flagged = [m for m in matches if m["verdict"] == "flagged"]
+        suspect = [m for m in matches if m["verdict"] == "suspect"]
+        flags = [{
+            "type": "suspected_external_copy" if m["kind"] == "known" else "suspected_plagiarism",
+            "detail": (f"{m['similarity']:.2f} similar to {m['file']} ({m['source']}); {m['shared_fingerprints']} "
+                       f"shared fingerprints, shared lines {m['shared_lines']}. Needs human review."),
+            "similarity": m["similarity"], "match": m["file"],
+        } for m in flagged]
+        flags += [{
+            "type": "similarity_suspect",
+            "detail": (f"SUSPECT, not flagged: {_shown_sim(m):.2f} similar to {m['file']} ({m['source']}), but "
+                       f"{_why_insufficient(m, len(mine), min_fp, min_shared)}. Small programs naturally share "
+                       f"this shape; look only if other evidence points the same way."),
+            "similarity": m["similarity"], "match": m["file"],
+        } for m in suspect[:3]]
+        evidence["verdict"] = "flagged" if flagged else "suspect" if suspect else \
+            "insufficient_evidence" if len(mine) < min_fp else "not_flagged"
+
+        if flagged:
+            score = 1.0 if params.get("flag_only", False) else 0.0
+            what = ", ".join(f"{m['file']} ({m['source']}, {m['similarity']:.2f})" for m in flagged[:3])
+            return AnalyzerResult(
+                score=score, evidence=evidence, flags=flags,
+                feedback=f"FLAGGED for review: highly similar to {what}.",
+                suggestions=["This code closely matches another submission or a known source and will be "
+                             "reviewed by the instructor. If you worked with someone or used a source, say so."],
+            )
+        if suspect:
+            m = suspect[0]
+            return AnalyzerResult(score=1.0, evidence=evidence, flags=flags,
+                                  feedback=f"Not flagged (SUSPECT, insufficient evidence): {_shown_sim(m):.2f} "
+                                           f"similar to {m['file']}, but "
+                                           f"{_why_insufficient(m, len(mine), min_fp, min_shared)}.")
         if len(mine) < min_fp:
             evidence["note"] = "too little distinctive code to judge originality"
             closest = (f" Closest: {best['file']} ({best['similarity']:.2f})." if best else "")
@@ -145,33 +229,39 @@ class SimilarityFlag(Analyzer):
                                   feedback=f"Not judged: only {len(mine)} distinctive fingerprints "
                                            f"(minimum {min_fp}); the code is almost all the shape every "
                                            f"solution shares.{closest}")
-        if not best or best["similarity"] < threshold:
-            sim = best["similarity"] if best else 0.0
-            return AnalyzerResult(score=1.0, evidence=evidence,
-                                  feedback=f"Max similarity {sim:.2f} (threshold {threshold:.2f}); not flagged.")
+        sim = best["similarity"] if best else 0.0
+        return AnalyzerResult(score=1.0, evidence=evidence,
+                              feedback=f"Max similarity {sim:.2f} (threshold {threshold:.2f}); not flagged.")
 
-        flagged = [m for m in matches if m["similarity"] >= threshold]
-        flags = []
-        for m in flagged:
-            known = m["kind"] == "known"
-            flags.append({
-                "type": "suspected_external_copy" if known else "suspected_plagiarism",
-                "detail": (f"{m['similarity']:.2f} similar to {m['file']} ({m['source']}); "
-                           f"shared lines {m['shared_lines']}. Needs human review."),
-                "similarity": m["similarity"], "match": m["file"],
-            })
-        score = 1.0 if params.get("flag_only", False) else 0.0
-        what = ", ".join(f"{m['file']} ({m['source']}, {m['similarity']:.2f})" for m in flagged[:3])
-        return AnalyzerResult(
-            score=score, evidence=evidence, flags=flags,
-            feedback=f"FLAGGED for review: highly similar to {what}.",
-            suggestions=["This code closely matches another submission or a known source and will be "
-                         "reviewed by the instructor. If you worked with someone or used a source, say so."],
-        )
+
+def _verdict(m: Dict, mine: int, threshold: float, min_fp: int, min_shared: int) -> str:
+    enough = mine >= min_fp and m["fingerprints"] >= min_fp and m["shared_fingerprints"] >= min_shared
+    if m["similarity"] >= threshold:
+        return "flagged" if enough else "suspect"
+    if not enough and m.get("raw_similarity", 0.0) >= threshold:
+        return "suspect"  # alike, but only in the shape every small program has
+    return "below_threshold"
+
+
+def _shown_sim(m: Dict) -> float:
+    return max(m["similarity"], m.get("raw_similarity", 0.0))
+
+
+def _why_insufficient(m: Dict, mine: int, min_fp: int, min_shared: int) -> str:
+    if mine < min_fp:
+        return (f"the submission has only {mine} distinctive fingerprints beyond the shape every solution "
+                f"shares (minimum {min_fp})")
+    if m["fingerprints"] < min_fp:
+        return f"{m['file']} has only {m['fingerprints']} distinctive fingerprints (minimum {min_fp})"
+    return f"they share only {m['shared_fingerprints']} fingerprints (minimum {min_shared})"
 
 
 def _rel(path: Path, base: Path) -> str:
+    """A label that does not depend on where the cache lives (it is part of the
+    report, and so of the fingerprint): generated known solutions read as
+    ``known/<file>`` wherever their bundle is stored."""
     try:
-        return path.resolve().relative_to(base.resolve()).as_posix()
+        rel = path.resolve().relative_to(base.resolve()).as_posix()
     except ValueError:
-        return path.name
+        return f"{path.parent.name}/{path.name}"
+    return f"{path.parent.name}/{path.name}" if ".autograder-cache" in rel.split("/") else rel

@@ -8,7 +8,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev valgrind cppcheck python3 python3-venv ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN python3 -m venv /opt/venv && /opt/venv/bin/pip install --no-cache-dir lizard==1.17.10
 
+# AUTOGRADER_IN_DOCKER: Ollama defaults to the host machine (host.docker.internal)
 ENV PATH=/opt/venv/bin:$PATH \
+    AUTOGRADER_IN_DOCKER=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     LANG=C.UTF-8

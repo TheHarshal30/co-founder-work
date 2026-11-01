@@ -38,13 +38,29 @@ def default_cache_dir() -> Path:
     return Path(os.environ.get("AUTOGRADER_CACHE", ".autograder-cache")) / "llm"
 
 
+def in_container() -> bool:
+    return Path("/.dockerenv").exists() or os.environ.get("AUTOGRADER_IN_DOCKER") == "1"
+
+
 def _ollama_base() -> str:
-    host = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434").strip()
+    """OLLAMA_HOST if set; otherwise the host machine's Ollama -- reached as
+    host.docker.internal from inside the Docker image, 127.0.0.1 outside it."""
+    default = "host.docker.internal:11434" if in_container() else "127.0.0.1:11434"
+    host = (os.environ.get("OLLAMA_HOST") or default).strip()
     if host.startswith("0.0.0.0"):
         host = "127.0.0.1" + host[len("0.0.0.0"):]
     if not host.startswith("http"):
         host = "http://" + host
     return host.rstrip("/")
+
+
+def _connection_help(base: str) -> str:
+    if "host.docker.internal" in base:
+        return ("Start Ollama on the host (`ollama serve`). From Docker the host is host.docker.internal "
+                "(grade.sh adds --add-host=host.docker.internal:host-gateway); on Linux, Ollama must also "
+                "listen beyond localhost: `OLLAMA_HOST=0.0.0.0 ollama serve`. Set AUTOGRADER_OLLAMA_HOST "
+                "to use another address.")
+    return "Start Ollama (`ollama serve`) or set OLLAMA_HOST to where it listens."
 
 
 def _post(url: str, body: dict, headers: Optional[dict] = None, timeout: float = 600) -> dict:
@@ -55,8 +71,16 @@ def _post(url: str, body: dict, headers: Optional[dict] = None, timeout: float =
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        # Ollama answers 404 {"error": "model 'x' not found"} for a model that is not pulled
+        try:
+            detail = json.loads(e.read().decode()).get("error") or str(e)
+        except (ValueError, OSError, AttributeError):
+            detail = str(e)
+        raise LLMUnavailable(f"{url} answered HTTP {e.code}: {detail}") from e
     except (urllib.error.URLError, OSError, ValueError) as e:
-        raise LLMUnavailable(f"{url}: {e}") from e
+        reason = getattr(e, "reason", e)
+        raise LLMUnavailable(f"cannot reach {url} ({reason})") from e
 
 
 class LLMClient:
@@ -128,7 +152,16 @@ class LLMClient:
             "options": {"temperature": temperature, "seed": seed, "top_k": 1, "top_p": 1.0,
                         "num_ctx": 8192},
         }
-        resp = _post(_ollama_base() + "/api/chat", body)
+        base = _ollama_base()
+        try:
+            resp = _post(base + "/api/chat", body)
+        except LLMUnavailable as e:
+            if "not found" in str(e) and "model" in str(e):
+                raise LLMUnavailable(f"Ollama at {base} does not have model '{model}': run "
+                                     f"`ollama pull {model}` on the Ollama host") from e
+            if "cannot reach" in str(e):
+                raise LLMUnavailable(f"Ollama is not reachable at {base}: {e}. {_connection_help(base)}") from e
+            raise
         if "error" in resp:
             raise LLMUnavailable(f"ollama: {resp['error']}")
         return resp.get("message", {}).get("content", "")
@@ -148,6 +181,37 @@ class LLMClient:
         with self._lock:
             self._digests[model] = digest
         return digest
+
+    def check(self, provider: str, model: str) -> Dict[str, Any]:
+        """Is the provider reachable and the model available? Never raises."""
+        out: Dict[str, Any] = {"provider": provider, "model": model, "ok": False, "offline": self.offline}
+        if self.offline:
+            out["error"] = "offline mode: no LLM is called; only cached answers and stored assets are used"
+            return out
+        if provider != "ollama":
+            key_env = "GROQ_API_KEY" if provider == "groq" else "OPENAI_COMPAT_API_KEY"
+            out["base_url"] = ("https://api.groq.com/openai/v1" if provider == "groq"
+                               else os.environ.get("OPENAI_COMPAT_BASE_URL", ""))
+            out["ok"] = bool(os.environ.get(key_env)) and bool(out["base_url"])
+            if not out["ok"]:
+                out["error"] = f"{provider}: set {key_env}" + ("" if out["base_url"] else " and OPENAI_COMPAT_BASE_URL")
+            return out
+        base = _ollama_base()
+        out["base_url"] = base
+        try:
+            with urllib.request.urlopen(base + "/api/tags", timeout=5) as r:
+                models = [m.get("name") for m in json.loads(r.read().decode()).get("models", [])]
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            out["error"] = f"Ollama is not reachable at {base} ({getattr(e, 'reason', e)}). {_connection_help(base)}"
+            return out
+        out["models"] = models
+        names = set(models) | {m.split(":")[0] for m in models if m and m.endswith(":latest")}
+        if model not in names:
+            out["error"] = (f"Ollama at {base} is up but has no model '{model}' (has: {', '.join(models) or 'none'}). "
+                            f"Run `ollama pull {model}` on the Ollama host, or choose one of those.")
+            return out
+        out["ok"] = True
+        return out
 
     def _openai_compat(self, provider, model, messages, temperature, seed) -> str:
         if provider == "groq":

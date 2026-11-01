@@ -293,8 +293,11 @@
       "evidence": {
         "method": "winnowing k=5 w=4, Dice overlap",
         "threshold": 0.85,
-        "fingerprints": 22,
+        "min_fingerprints": 8,
+        "min_shared_fingerprints": 8,
+        "fingerprints": 21,
         "ignored_reference_fingerprints": 13,
+        "ignored_boilerplate_fingerprints": 1,
         "compared_against": 10,
         "top_matches": [
           {
@@ -302,24 +305,37 @@
             "kind": "submission",
             "source": "classmate",
             "similarity": 1.0,
-            "shared_lines": "8, 10, 13-16, 19-21, 24"
+            "raw_similarity": 1.0,
+            "fingerprints": 21,
+            "shared_fingerprints": 21,
+            "shared_lines": "8, 10, 13-16, 19-21, 24",
+            "verdict": "flagged"
           },
           {
             "file": "submissions/add_wrong_format.c",
             "kind": "submission",
             "source": "classmate",
-            "similarity": 0.615,
-            "shared_lines": "8, 10, 13, 24"
+            "similarity": 0.686,
+            "raw_similarity": 0.615,
+            "fingerprints": 14,
+            "shared_fingerprints": 12,
+            "shared_lines": "8, 10, 13, 24",
+            "verdict": "below_threshold"
           },
           {
             "file": "known/llm_qwen2.5-7b_2.c",
             "kind": "known",
             "source": "LLM-generated (qwen2.5:7b)",
-            "similarity": 0.235,
-            "shared_lines": "19-20"
+            "similarity": 0.286,
+            "raw_similarity": 0.235,
+            "fingerprints": 7,
+            "shared_fingerprints": 4,
+            "shared_lines": "19-20",
+            "verdict": "below_threshold"
           }
         ],
-        "max_similarity": 1.0
+        "max_similarity": 1.0,
+        "verdict": "flagged"
       }
     }
   ],
@@ -328,7 +344,7 @@
     {
       "metric": "originality",
       "type": "suspected_plagiarism",
-      "detail": "1.00 similar to submissions/add_copied.c (classmate); shared lines 8, 10, 13-16, 19-21, 24. Needs human review.",
+      "detail": "1.00 similar to submissions/add_copied.c (classmate); 21 shared fingerprints, shared lines 8, 10, 13-16, 19-21, 24. Needs human review.",
       "similarity": 1.0,
       "match": "submissions/add_copied.c"
     }
@@ -404,22 +420,22 @@
       }
     ]
   },
-  "fingerprint": "sha256:99b786300efe602c0714dea1320175305d9f535c4b8bd890de1cbef3e8915f54",
+  "fingerprint": "sha256:79d5c259c051868253ebd15b76966d7119ac5c7b9e35d66507bcb3713f824b0d",
   "meta": {
     "report_version": 1,
-    "generated_at": "2026-10-19T13:25:56Z",
-    "elapsed_s": 0.72,
+    "generated_at": "2026-11-01T13:16:03Z",
+    "elapsed_s": 0.94,
     "timings_s": {
-      "first_pass": 0.018,
+      "first_pass": 0.033,
       "modularity": 0.0,
-      "structure": 0.006,
       "readability": 0.003,
-      "syntax": 0.01,
-      "originality": 0.012,
-      "correctness": 0.026,
-      "logical": 0.055,
-      "complexity": 0.331,
-      "memory_safety": 0.691
+      "structure": 0.007,
+      "originality": 0.014,
+      "syntax": 0.017,
+      "correctness": 0.024,
+      "logical": 0.037,
+      "complexity": 0.35,
+      "memory_safety": 0.886
     },
     "llm_cache": {
       "hits": 1,

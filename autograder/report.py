@@ -42,6 +42,46 @@ def _score_text(m: Dict[str, Any]) -> str:
     return f"{got:g}/{full}" if got == int(got) else f"{got:.1f}/{full}"
 
 
+def _status(m: Dict[str, Any]) -> str:
+    return str(m.get("status", "ok")).replace("_", " ").upper()
+
+
+def _findings(m: Dict[str, Any]) -> List[str]:
+    """One-line summaries of what each analyzer measured (its evidence)."""
+    e, a = m.get("evidence") or {}, m["analyzer"]
+    out: List[str] = []
+    if a == "io_tests" and "tests_total" in e:
+        out.append(f"{e['tests_passed']}/{e['tests_total']} tests passed")
+    elif a == "edge_case_runner" and e.get("families"):
+        out.append("corner cases: " + ", ".join(f"{f['family']} {f['passed']}/{f['total']}" for f in e["families"]))
+    elif a == "complexity_estimator" and e.get("measurements") is not None:
+        series = ", ".join(f"n={p['n']}: {p['cost']:,}" for p in e["measurements"])
+        est = e.get("estimated", "not estimated")
+        out.append(f"estimated {est}, required {e.get('required')} ({e.get('method')}: {series})")
+        if e.get("failed_at_size"):
+            out.append(f"failed at size {e['failed_at_size']}")
+    elif a == "compiler_warnings" and "warnings" in e:
+        out.append(f"{len(e['warnings'])} warning(s), {len(e.get('errors', []))} error(s) with {e.get('flags')}")
+        out += [f"line {w.get('line')}: {w.get('message')}" for w in e["warnings"][:3]]
+    elif a == "function_split" and "functions_defined" in e:
+        out.append(f"{e['functions_defined']} function(s) (expected at least {e.get('expected_min')})")
+    elif a == "sanitizer_run" and "inputs_checked" in e:
+        out.append(f"{e['inputs_checked']} input(s) run under {e.get('sanitizers') or 'sanitizers'}; "
+                   f"{len(e.get('issues') or [])} issue(s)")
+    elif a == "static_analysis" and e.get("deductions"):
+        out += [f"-{d['points']:g}: {d['reason']}" for d in e["deductions"][:4]]
+    elif a == "similarity_flag" and "fingerprints" in e:
+        verdict = str(e.get("verdict", "")).replace("_", " ").upper()
+        line = (f"{verdict}: {e['fingerprints']} distinctive fingerprints (minimum {e.get('min_fingerprints', 8)}), "
+                f"compared against {e.get('compared_against', 0)} file(s)")
+        top = (e.get("top_matches") or [None])[0]
+        if top:
+            line += (f"; closest {top['file']} at {top['similarity']:.2f} sharing "
+                     f"{top.get('shared_fingerprints', '?')} fingerprints")
+        out.append(line)
+    return out
+
+
 def render_text(r: Dict[str, Any]) -> str:
     L: List[str] = []
     L.append(f"===== Grading report for {r['submission']} =====")
@@ -51,11 +91,11 @@ def render_text(r: Dict[str, Any]) -> str:
         status += "  (PARTIAL REPORT)"
     L.append(f"Overall grade: {r['grade']:.1f} / 100{status}")
     L.append("")
-    L.append(f"{'Metric':<15}{'Weight':>6}  {'Score':>8}  Verdict")
+    L.append(f"{'Metric':<15}{'Weight':>6}  {'Score':>8}  {'Status':<14}Verdict")
     for m in r["metrics"]:
         verdict = m["feedback"]
-        prefix = f"{m['name']:<15}{round(m['weight'] * 100):>6}  {_score_text(m):>8}  "
-        wrapped = textwrap.wrap(verdict, WIDTH - len(prefix)) or [""]
+        prefix = f"{m['name']:<15}{round(m['weight'] * 100):>6}  {_score_text(m):>8}  {_status(m):<14}"
+        wrapped = textwrap.wrap(verdict, max(30, WIDTH - len(prefix))) or [""]
         L.append(prefix + wrapped[0])
         L.extend(" " * len(prefix) + w for w in wrapped[1:5])
 
@@ -96,16 +136,46 @@ def render_text(r: Dict[str, Any]) -> str:
         for s in r["suggestions"]:
             L.extend(_wrap(f"{s['suggestion']} [{s['metric']}]", 2, "- "))
 
-    prep = r.get("asset_preparation")
+    findings = [(m["name"], f) for m in r["metrics"] for f in _findings(m)]
+    if findings:
+        L.append("")
+        L.append("--- Analyzer findings ---")
+        for name, f in findings:
+            L.extend(_wrap(f"{name}: {f}", 4, "  - "))
+
+    prep = r.get("asset_preparation") or {}
+    not_run = [m for m in r["metrics"] if m["status"] not in ("ok",)]
+    asset_skips = [(n, s) for n, m in prep.get("metrics", {}).items() for s in m.get("skipped", [])]
+    if not_run or asset_skips:
+        L.append("")
+        L.append("--- Not performed / skipped, and why ---")
+        for m in not_run:
+            L.extend(_wrap(f"{m['name']} ({_status(m).strip()}): {m['feedback']}", 4, "  - "))
+        for name, why in asset_skips:
+            L.extend(_wrap(f"{name}: skipped {why}", 4, "  - "))
+
     if prep:
         L.append("")
         L.append("--- Test assets (generated workflow) ---")
         L.extend(_wrap("Expected outputs from: " + prep["expected_outputs_from"].replace("_", " ")
                        + ". The submission's own output is never used as the answer key.", 2, "  "))
+        if prep.get("storage"):
+            L.extend(_wrap(f"Stored in: <cache>/{prep['storage']} (generation {prep.get('generation_id', '')})",
+                           2, "  "))
+        if prep.get("spec_basis"):
+            L.extend(_wrap(f"Input format: {prep['spec_basis']}", 2, "  "))
+        oracle = prep.get("oracle") or {}
+        if oracle.get("reason"):
+            L.extend(_wrap(f"Oracle ({oracle.get('mode', '').replace('_', ' ')}): {oracle['reason']}", 2, "  "))
+        for c in oracle.get("candidates", []):
+            L.extend(_wrap(f"candidate {c['label']}: {c['status']}" + (f" - {c['detail']}" if c.get("detail") else ""),
+                           6, "    - "))
         if prep.get("assets"):
             L.append("  Assets: " + ", ".join(f"{k} {v}" for k, v in prep["assets"].items()))
         for name, m in prep["metrics"].items():
             L.extend(_wrap(f"{name}: {m['status'].replace('_', ' ')} - {m['detail']}", 4, "  - "))
+        for f in prep.get("failures", []):
+            L.extend(_wrap(f"generation failure (not the student's fault): {f['step']}: {f['detail']}", 4, "  - "))
 
     ul = r.get("usefulness_limitations")
     if ul:
@@ -126,6 +196,6 @@ def render_text(r: Dict[str, Any]) -> str:
     L.append(f"Report fingerprint: {r['fingerprint']}")
     L.append(f"Rules: {r['rules_hash'][:23]}...  Assets: {r['assets_hash'][:23]}...")
     tv = r["tool_versions"]
-    L.append("Tools: " + ", ".join(f"{k} {v}" for k, v in tv.items() if v and k not in ("cc",)) )
+    L.append("Tools: " + ", ".join(f"{k} {v}" for k, v in sorted(tv.items()) if v and k not in ("cc",)))
     L.append(f"Compiler: {tv.get('cc')}")
     return "\n".join(L) + "\n"

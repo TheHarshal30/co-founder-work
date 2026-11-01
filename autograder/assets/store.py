@@ -87,13 +87,13 @@ def _now() -> str:
 
 @dataclass
 class AssetRecord:
-    kind: str     # input_spec | generator | test_input | test_output | edge_cases | inputs | oracle | known_solution
+    kind: str     # input_spec | generator | test_input | test_output | edge_cases | inputs | oracle | reference | known_solution
     name: str
     status: str   # validated | rejected | skipped | unavailable
     origin: str   # instructor | instructor_example | deterministic | llm | llm_oracle | instructor_reference
     detail: str = ""
     content: Optional[str] = None
-    path: Optional[str] = None   # bundle-relative path it is materialised to (validated only)
+    path: Optional[str] = None   # bundle-relative file it is materialised to (None: database only)
     sha256: Optional[str] = None
 
 
@@ -209,6 +209,8 @@ class AssetStore:
             d = dict(r)
             manifest = json.loads(d.pop("manifest_json"))
             d.update({"expected_outputs_from": manifest.get("expected_outputs_from"),
+                      "generation_id": manifest.get("generation_id", d["bundle_key"][:16]),
+                      "storage": manifest.get("storage"),
                       "counts": manifest.get("counts", {}), "metrics": manifest.get("metrics", {}),
                       "failures": manifest.get("failures", [])})
             out.append(d)

@@ -2,29 +2,35 @@
 Problem: max_subarray
 Overall grade: 89.0 / 100
 
-Metric         Weight     Score  Verdict
-correctness        25     25/25  All 10 tests pass.
-syntax              5       5/5  No compiler warnings.
-structure           5       5/5  3 function(s), all within complexity 8 and
-                                 length 40; no static-analysis findings.
-modularity          5       5/5  3 functions; main() delegates the work (33%
-                                 of the code).
-logical            15     15/15  Handles every corner-case family tested
-                                 (single_element, all_negative, all_zero,
-                                 mixed, large_values, best_at_edges,
-                                 random_stress).
-complexity         15     15/15  O(n) confirmed (required O(n)).
-memory_safety      10     10/10  No memory or undefined-behaviour errors on 20
-                                 inputs.
-readability        10    4.0/10  4/10 -- Uses cryptic names like 'acc', 'v';
-                                 No comments to explain the logic
-originality         5       0/5  FLAGGED for review: highly similar to
-                                 submissions/s01_kadane.c (classmate, 1.00).
-safe_io             5       5/5  All 3 code rules satisfied.
+Metric         Weight     Score  Status        Verdict
+correctness        25     25/25  OK            All 10 tests pass.
+syntax              5       5/5  OK            No compiler warnings.
+structure           5       5/5  OK            3 function(s), all within
+                                               complexity 8 and length 40; no
+                                               static-analysis findings.
+modularity          5       5/5  OK            3 functions; main() delegates
+                                               the work (33% of the code).
+logical            15     15/15  OK            Handles every corner-case
+                                               family tested (single_element,
+                                               all_negative, all_zero, mixed,
+                                               large_values, best_at_edges,
+                                               random_stress).
+complexity         15     15/15  OK            O(n) confirmed (required O(n)).
+memory_safety      10     10/10  OK            No memory or undefined-
+                                               behaviour errors on 20 inputs.
+readability        10    4.0/10  OK            4/10 -- Uses cryptic names like
+                                               'acc', 'v'; No comments to
+                                               explain the logic
+originality         5       0/5  OK            FLAGGED for review: highly
+                                               similar to
+                                               submissions/s01_kadane.c
+                                               (classmate, 1.00).
+safe_io             5       5/5  OK            All 3 code rules satisfied.
 
 --- Flags ---
 - [suspected_plagiarism] 1.00 similar to submissions/s01_kadane.c (classmate);
-  shared lines 2-6, 8-10, 12, 14, 16-17. Needs human review.
+  32 shared fingerprints, shared lines 2-6, 8-10, 12, 14, 17. Needs human
+  review.
 
 --- Suggestions to raise the grade (biggest gains first) ---
 - Use more descriptive variable names such as `current_value` and
@@ -35,6 +41,21 @@ safe_io             5       5/5  All 3 code rules satisfied.
 - This code closely matches another submission or a known source and will be
   reviewed by the instructor. If you worked with someone or used a source, say
   so. [originality]
+
+--- Analyzer findings ---
+  - correctness: 10/10 tests passed
+  - syntax: 0 warning(s), 0 error(s) with -Wall -Wextra -std=c11 -O2
+  - modularity: 3 function(s) (expected at least 2)
+  - logical: corner cases: single_element 3/3, all_negative 3/3, all_zero 1/1,
+    mixed 3/3, large_values 2/2, best_at_edges 2/2, random_stress 40/40
+  - complexity: estimated O(n), required O(n) (instructions: n=500: 653,616,
+    n=1000: 1,206,699, n=2000: 2,314,593, n=4000: 4,532,141, n=8000:
+    8,963,891)
+  - memory_safety: 20 input(s) run under -fsanitize=address,undefined; 0
+    issue(s)
+  - originality: FLAGGED: 32 distinctive fingerprints (minimum 8), compared
+    against 9 file(s); closest submissions/s01_kadane.c at 1.00 sharing 32
+    fingerprints
 
 --- Usefulness & limitations of this evaluation ---
 Useful for:
@@ -101,7 +122,7 @@ Limits of this report:
      (comment ratio, single-letter names), and spot-check a sample of scores
      by hand.
 
-Report fingerprint: sha256:4d350131ade4ef2fb163f90d206aa39de74de646a238c3e3b631543f509c9d7a
+Report fingerprint: sha256:2dfea21d50c149af29527b49a9f871bcee0520b8e97d10808ec54b1b0b2fb85f
 Rules: sha256:77de558f313faf2c...  Assets: sha256:16472fe8ede8495a...
-Tools: platform Linux-aarch64, python 3.12.3, valgrind 3.22.0, cppcheck 2.13.0, lizard 1.17.10
+Tools: cppcheck 2.13.0, lizard 1.17.10, platform Linux-aarch64, python 3.12.3, valgrind 3.22.0
 Compiler: gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0

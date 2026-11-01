@@ -2,26 +2,39 @@
 Problem: add_two_integers
 Overall grade: 77.8 / 100
 
-Metric         Weight     Score  Verdict
-correctness        20   16.0/20  8/10 tests pass. First failure: test 07
-                                 (wrong answer).
-syntax             10    9.0/10  1 warning(s): line 4: ignoring return value
-                                 of 'scanf' declared with attribute
-                                 'warn_unused_result' [-Wunused-result]
-structure          10     10/10  1 function(s), all within complexity 8 and
-                                 length 40; no static-analysis findings.
-modularity         10      3/10  Only main() is defined; all logic lives in
-                                 one function.
-logical            10    7.2/10  Fails on: int_overflow, random_stress.
-complexity         10     10/10  O(1) confirmed (required O(1)).
-memory_safety      10    7.5/10  1 issue(s): signed-integer-overflow at
-                                 add.c:5
-readability        10      5/10  5/10 -- Uses single-letter variable names (a,
-                                 b); No comments to explain the code
-originality        10     10/10  Not judged: only 6 distinctive fingerprints
-                                 (minimum 8); the code is almost all the shape
-                                 every solution shares. Closest:
-                                 known/llm_qwen2.5-7b_1.c (1.00).
+Metric         Weight     Score  Status        Verdict
+correctness        20   16.0/20  OK            8/10 tests pass. First failure:
+                                               test 07 (wrong answer).
+syntax             10    9.0/10  OK            1 warning(s): line 4: ignoring
+                                               return value of 'scanf'
+                                               declared with attribute
+                                               'warn_unused_result' [-Wunused-
+                                               result]
+structure          10     10/10  OK            1 function(s), all within
+                                               complexity 8 and length 40; no
+                                               static-analysis findings.
+modularity         10      3/10  OK            Only main() is defined; all
+                                               logic lives in one function.
+logical            10    7.2/10  OK            Fails on: int_overflow,
+                                               random_stress.
+complexity         10     10/10  OK            O(1) confirmed (required O(1)).
+memory_safety      10    7.5/10  OK            1 issue(s): signed-integer-
+                                               overflow at add.c:5
+readability        10      5/10  OK            5/10 -- Uses single-letter
+                                               variable names (a, b); No
+                                               comments to explain the code
+originality        10     10/10  OK            Not flagged (SUSPECT,
+                                               insufficient evidence): 1.00
+                                               similar to
+                                               known/llm_qwen2.5-7b_1.c, but
+                                               the submission has only 0
+
+--- Flags ---
+- [similarity_suspect] SUSPECT, not flagged: 1.00 similar to
+  known/llm_qwen2.5-7b_1.c (LLM-generated (qwen2.5:7b)), but the submission
+  has only 0 distinctive fingerprints beyond the shape every solution shares
+  (minimum 8). Small programs naturally share this shape; look only if other
+  evidence points the same way.
 
 --- Where you failed ---
 test 07  (correctness, wrong answer)
@@ -53,6 +66,22 @@ test 07  (correctness, wrong answer)
   long or check the range first. [memory_safety]
 - Fix the warning at line 4: ignoring return value of 'scanf' declared with
   attribute 'warn_unused_result' [-Wunused-result] [syntax]
+
+--- Analyzer findings ---
+  - correctness: 8/10 tests passed
+  - syntax: 1 warning(s), 0 error(s) with -Wall -Wextra -Werror -std=c11 -O2
+  - syntax: line 4: ignoring return value of 'scanf' declared with attribute
+    'warn_unused_result'
+  - modularity: 1 function(s) (expected at least 2)
+  - logical: corner cases: negatives 3/3, zero 3/3, int_overflow 0/4,
+    random_stress 18/20
+  - complexity: estimated O(1), required O(1) (instructions: n=1: 99,339,
+    n=10: 99,362, n=100: 99,523)
+  - memory_safety: 23 input(s) run under -fsanitize=address,undefined; 1
+    issue(s)
+  - originality: SUSPECT: 0 distinctive fingerprints (minimum 8), compared
+    against 10 file(s); closest known/llm_qwen2.5-7b_1.c at 0.00 sharing 0
+    fingerprints
 
 --- Usefulness & limitations of this evaluation ---
 Useful for:
@@ -119,7 +148,7 @@ Limits of this report:
      (comment ratio, single-letter names), and spot-check a sample of scores
      by hand.
 
-Report fingerprint: sha256:f9bb3530ab8fc71c57b4d772c8e9e952a147af9d4a3849ec82265d9f8b8e4359
+Report fingerprint: sha256:806bc3ea06f348b44c754e6ee41fa1d98806c695ada3f69e169b535368388eb4
 Rules: sha256:474204f08f31a3d8...  Assets: sha256:6b906fad5b8bd674...
-Tools: platform Linux-aarch64, python 3.12.3, valgrind 3.22.0, cppcheck 2.13.0, lizard 1.17.10
+Tools: cppcheck 2.13.0, lizard 1.17.10, platform Linux-aarch64, python 3.12.3, valgrind 3.22.0
 Compiler: gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0

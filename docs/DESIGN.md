@@ -188,8 +188,17 @@ Renaming variables, reformatting or rewriting comments changes nothing.
   `suspected_external_copy`.
 * **Avoiding false flags on tiny problems.** Fingerprints that also occur in
   the reference solution are ignored, because every correct answer shares
-  them. Programs with fewer than 8 distinctive fingerprints are reported as
-  "not judged" rather than flagged.
+  them, and so are those of a few built-in I/O skeletons (read two numbers and
+  print their sum; read n and loop). Without that second filter the 8-print
+  minimum protected nothing when there was no reference: after normalisation
+  even `main(){int a,b;scanf(..);printf(..,a+b);}` has 9-10 fingerprints, and
+  two honest one-liners scored 1.00 and were FLAGGED. A match is FLAGGED only
+  if similarity >= `flag_threshold`, both programs keep at least
+  `min_fingerprints` (8) distinctive fingerprints, and they share at least
+  `min_shared_fingerprints` (8). A match that misses that bar -- or whose raw
+  similarity, boilerplate included, is high while the code is too small -- is
+  reported as **SUSPECT** (`similarity_suspect` flag, no penalty, no
+  accusation). The fingerprint algorithm itself is unchanged.
 
 A flag is a request for human review, and the report lists the shared line
 ranges. With `flag_only`, a flag does not cost points.
@@ -240,7 +249,7 @@ Produced in the Docker image (`sample_outputs/`, reports in `.txt` and `.json`).
 | `add.c` (the PDF's) | 77.8 | Fails tests 07/10 (INT_MAX+1, 2·10⁹+2·10⁹). Shows expected 2147483648, got −2147483648, and why: UBSan signed overflow at add.c:5. Only `main()` (modularity 3/10). One `-Wunused-result` warning. |
 | `add_clean.c` | 88.0 | All objective metrics full marks. Flagged together with `add_copied.c`. |
 | `add_copied.c` | 83.9 | Renamed and reformatted copy of `add_clean.c`: similarity 1.00, flagged `suspected_plagiarism` |
-| `add_llm.c` | 69.8 | 1.00 match to `known/llm_qwen2.5-7b_2.c`, flagged `suspected_external_copy`. Also inherits the LLM's int-overflow bug. |
+| `add_llm.c` | 79.8 | A verbatim `qwen2.5:7b` answer, but after the reference and the common I/O skeleton are removed only 7 distinctive fingerprints remain (minimum 8), so it is reported SUSPECT (`similarity_suspect`, no penalty) rather than flagged: the same evidence would accuse an honest student who wrote the obvious program. Also inherits the LLM's int-overflow bug. |
 | `add_leaky.c` | 79.0 | Output correct by luck. ASan finds a heap-buffer-overflow READ at line 10, and valgrind finds 8 bytes definitely lost (allocated at line 6). |
 | `add_wrong_format.c` | 62.5 | Prints `Enter two numbers: Sum = 12`. Explanation: the right answer is surrounded by extra text. |
 | `add_infinite_loop.c` | 39.0 | `while (scanf(...) != 0)` never stops. First pass flags `suspected_infinite_loop`; execution metrics are skipped and the report is marked partial. |
@@ -301,8 +310,9 @@ Produced in the Docker image (`sample_outputs/`, reports in `.txt` and `.json`).
    `add.c` is token-for-token identical to what `qwen2.5:7b` writes
    (`known/llm_qwen2.5-7b_1.c`, similarity 1.00). Two honest students who both
    write scanf/printf in `main()` would also match. The agent therefore refuses
-   to judge programs with fewer than 8 distinctive fingerprints, which means
-   it **cannot** catch a copied 6-line answer (a false negative). In the other
+   to flag programs with fewer than 8 distinctive fingerprints (it reports them
+   as SUSPECT at most), which means it **cannot** convict a copied 6-line or
+   20-line answer (`add_llm.c`, a false negative by design). In the other
    direction, an LLM answer whose loops the student rewrites as recursion falls
    below the threshold.
 4. **Readability is subjective and can be gamed.** Comments that only restate
@@ -333,9 +343,13 @@ Further known cases:
 
 **Problem.** Most analyzers need instructor assets (tests, a reference
 solution, a generator, corner cases, a corpus). The new workflow has only
-`submission.c` and `rules.json`. An LLM can write inputs, but it cannot be
-trusted to know the right *outputs*, and the submission is the thing being
-judged, so it cannot be the answer key either.
+`submission.c` and `rules.json` -- no `asset_generation` block, no statement.
+An LLM can write inputs, but it cannot be trusted to know the right *outputs*,
+and the submission is the thing being judged, so it cannot be the answer key
+either. The problem itself is inferred from what the instructor published: the
+title (`add_two_integers` -> "add two integers"), the statement or
+`description` if any, limits, the required complexity, the corner-case family
+names in the rules, and the sample with its output.
 
 **Where it plugs in.** Before rules are loaded. `prepare.py` builds an
 `AssetOverlay` (defined in `rules.py`) that `load_rules` applies in memory:
@@ -354,16 +368,17 @@ rules.json ─► inventory (which analyzer needs what; what is missing?)
            cache key = H(rules, statement, instructor assets, settings, model,
                          generator + prompt version, compiler) ─► SQLite hit? ─┐
                 ▼ miss                                                         │
-  input spec ── LLM from the statement, or the instructor's; must parse every  │
+  brief ─────── title, statement/description, limits, sample (+ its output)  │
+  input spec ── LLM from the brief, or the instructor's; must parse every      │
                 instructor input; bounded retries with validator feedback      │
   gen.py ────── fixed template interpreting the spec; determinism + validity   │
   inputs ────── boundary families (deterministic) + LLM families; each parsed  │
-  outputs ───── instructor outputs │ instructor reference │ opt-in LLM oracle  │
+  outputs ───── instructor outputs │ instructor reference │ LLM oracle (auto)  │
   known/ ────── LLM solutions (text only)                                      │
                 ▼                                                              │
   per metric: prepared │ partial │ not_performed  ─► SQLite (+ rejected, events)
                 ▼                                                              │
-  materialise <cache>/assets/<key>/ ◄──────────────────────────────────────────┘
+  materialise <cache>/generated/<problem>/<generation_id>/ ◄──────────────────┘
                 ▼
   load_rules(rules, overlay) ─► grade() as before
 ```
@@ -376,14 +391,31 @@ Python runs and nothing it says can become a shell command. A constraint the
 format cannot express (e.g. "the graph is connected") must be declared, and
 then the spec is rejected rather than used wrongly.
 
-**Why the oracle is opt-in and strict.** An LLM-written reference is only
-evidence. It is accepted only if it passes a static screen (standard headers,
-no process/file/network calls, no inline assembly), compiles and runs under
-the student sandbox, reproduces every instructor example output, and agrees
-with an independently written version (brute force vs. efficient) on every
-validation input. Example mismatches are never fed back to the model, so the
-examples stay an independent check. Any disagreement rejects the oracle; there
-is no majority vote. The report flags `llm_oracle_used`.
+**Why the oracle is on by default, and how it is kept honest.** Without it, a
+bare rules file can never test correctness or corner cases: `edge_case_runner`
+was *always* not performed in the generated workflow, because no generated
+input had a trusted output. An LLM-written program is still only evidence, so
+three are written in different styles (brute force, efficient, careful) and
+each must pass a static screen (standard headers, no process/file/network
+calls, no inline assembly), compile and run under the student sandbox,
+reproduce every instructor example output, and not crash on any valid input.
+Held-out examples (`asset_generation.examples`, instructor `tests/*.out`) are
+never shown to the model and mismatches are never fed back, so they stay an
+independent check. An input gets an expected output only if every remaining
+candidate agrees on it -- no majority vote, which would just pick the common
+bug. Unanimity on every validation input (which includes the exact random
+stress inputs drawn at grade time) makes the efficient candidate the generated
+reference; disagreement anywhere keeps only the agreed inputs and trusts no
+program for unseen ones. Without any instructor example output, all three must
+remain (pure consensus, flagged `llm_oracle_unanchored`). The report flags
+`llm_oracle_used`; `"oracle": "none"` restores the old behaviour.
+
+**Where the files go.** `.autograder-cache/generated/<problem>/<generation_id>/`
+with one subfolder per kind (`spec/`, `generators/`, `tests/<metric>/`,
+`edge_cases/`, `inputs/`, `oracles/`, `reference/`, `known/`) plus
+`manifest.json` and `validation/report.json`. Rejected oracle candidates are
+written too (under `oracles/`, marked rejected in the report) so an instructor
+can read why; analyzers are only ever pointed at validated files.
 
 **Why "not performed" is not rescaled.** A missing *tool* (no Ollama for
 readability) is rescaled and flagged, as before. A missing *answer key* is
@@ -396,7 +428,11 @@ reference crashed).
 **Why assets ignore the submission.** If generated tests depended on the
 submission, two students would be graded against different tests, and a batch
 would regenerate per student. The submission hash is recorded with each grade
-in the `grades` table instead.
+in the `grades` table instead. One narrow exception: when the instructor
+published no input at all, the submission's input-reading lines are given to
+the *input-spec* step only, as a layout hint. The hint's hash joins the cache
+key and the report flags `input_format_from_submission`; oracle and test
+prompts never see the submission.
 
 **Reproducibility.** Every LLM call goes through the cached client
 (temperature 0, fixed seed; the model digest salts the cache key when Ollama
@@ -407,14 +443,15 @@ fingerprints across runs and machines.
 
 ### Limitations of generated assets
 
-1. **No oracle, no correctness.** With only `rules.json` and a statement, and
-   without `sample_output`/`examples`, correctness and corner cases are *not
-   performed*. This is deliberate; it is the most common outcome for a bare
-   rules file.
-2. **The consensus oracle can still be wrong.** Two LLM programs can share the
-   same misreading of an ambiguous statement and agree on every input. Passing
-   two instructor examples does not rule that out. Treat `llm_oracle_used`
-   grades as provisional.
+1. **No LLM, no correctness beyond the instructor's examples.** Offline or with
+   Ollama unreachable, correctness runs only on `sample_output`/`examples`, and
+   corner cases are *not performed*, with the reason in the report.
+2. **The consensus oracle can still be wrong.** Three LLM programs can share
+   the same misreading of a title-only problem (e.g. whether `a+b` may
+   overflow) and agree on every input; one sample output does not rule that
+   out. Disagreements are surfaced per input, agreements are not proof. Treat
+   `llm_oracle_used` grades as provisional, and add a `description` or more
+   example outputs for anything ambiguous.
 3. **Inputs are only as good as the spec.** The spec format covers
    whitespace-separated numbers, words, arrays and repeated lines. Problems
    with structural constraints (trees, connected graphs, valid expressions) are
@@ -430,7 +467,11 @@ fingerprints across runs and machines.
    same name reuses the stored bundle.
 6. **Similarity without a class corpus** compares only against generated
    LLM solutions; classmate copying cannot be detected from a single
-   submission.
+   submission. For very small programs the evidence bar (8 distinctive
+   fingerprints each side, 8 shared, after the reference and common I/O
+   skeletons are removed) means a verbatim LLM answer is usually only SUSPECT
+   (`add_llm.c`). That is the price of never accusing an honest student who
+   wrote the obvious program.
 
 ---
 

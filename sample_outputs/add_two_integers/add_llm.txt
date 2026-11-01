@@ -1,29 +1,37 @@
 ===== Grading report for add_llm.c =====
 Problem: add_two_integers
-Overall grade: 69.8 / 100
+Overall grade: 79.8 / 100
 
-Metric         Weight     Score  Verdict
-correctness        20   16.0/20  8/10 tests pass. First failure: test 07
-                                 (wrong answer).
-syntax             10     10/10  No compiler warnings.
-structure          10     10/10  1 function(s), all within complexity 8 and
-                                 length 40; no static-analysis findings.
-modularity         10      3/10  Only main() is defined; all logic lives in
-                                 one function.
-logical            10    7.2/10  Fails on: int_overflow, random_stress.
-complexity         10     10/10  O(1) confirmed (required O(1)).
-memory_safety      10    7.5/10  1 issue(s): signed-integer-overflow at
-                                 add_llm.c:14
-readability        10      6/10  6/10 -- Uses single-letter identifiers (x,
-                                 y); No comments explaining the program's
-                                 purpose
-originality        10      0/10  FLAGGED for review: highly similar to
-                                 known/llm_qwen2.5-7b_2.c (LLM-generated
-                                 (qwen2.5:7b), 1.00).
+Metric         Weight     Score  Status        Verdict
+correctness        20   16.0/20  OK            8/10 tests pass. First failure:
+                                               test 07 (wrong answer).
+syntax             10     10/10  OK            No compiler warnings.
+structure          10     10/10  OK            1 function(s), all within
+                                               complexity 8 and length 40; no
+                                               static-analysis findings.
+modularity         10      3/10  OK            Only main() is defined; all
+                                               logic lives in one function.
+logical            10    7.2/10  OK            Fails on: int_overflow,
+                                               random_stress.
+complexity         10     10/10  OK            O(1) confirmed (required O(1)).
+memory_safety      10    7.5/10  OK            1 issue(s): signed-integer-
+                                               overflow at add_llm.c:14
+readability        10      6/10  OK            6/10 -- Uses single-letter
+                                               identifiers (x, y); No comments
+                                               explaining the program's
+                                               purpose
+originality        10     10/10  OK            Not flagged (SUSPECT,
+                                               insufficient evidence): 1.00
+                                               similar to
+                                               known/llm_qwen2.5-7b_2.c, but
+                                               the submission has only 7
 
 --- Flags ---
-- [suspected_external_copy] 1.00 similar to known/llm_qwen2.5-7b_2.c (LLM-
-  generated (qwen2.5:7b)); shared lines 4-5, 8-11, 14, 17. Needs human review.
+- [similarity_suspect] SUSPECT, not flagged: 1.00 similar to
+  known/llm_qwen2.5-7b_2.c (LLM-generated (qwen2.5:7b)), but the submission
+  has only 7 distinctive fingerprints beyond the shape every solution shares
+  (minimum 8). Small programs naturally share this shape; look only if other
+  evidence points the same way.
 
 --- Where you failed ---
 test 07  (correctness, wrong answer)
@@ -44,9 +52,6 @@ test 07  (correctness, wrong answer)
     triggered by input: '2147483647 1\n'
 
 --- Suggestions to raise the grade (biggest gains first) ---
-- This code closely matches another submission or a known source and will be
-  reviewed by the instructor. If you worked with someone or used a source, say
-  so. [originality]
 - Move the computation into its own function (e.g. a helper that takes the
   inputs and returns the result) and call it from main(). [modularity]
 - Use a wider type (long long) for values that can exceed the int range, or
@@ -56,6 +61,20 @@ test 07  (correctness, wrong answer)
 - Ensure consistent indentation throughout the code [readability]
 - add_llm.c:14: A signed int calculation overflows (undefined behaviour); use
   long long or check the range first. [memory_safety]
+
+--- Analyzer findings ---
+  - correctness: 8/10 tests passed
+  - syntax: 0 warning(s), 0 error(s) with -Wall -Wextra -Werror -std=c11 -O2
+  - modularity: 1 function(s) (expected at least 2)
+  - logical: corner cases: negatives 3/3, zero 3/3, int_overflow 0/4,
+    random_stress 18/20
+  - complexity: estimated O(1), required O(1) (instructions: n=1: 100,286,
+    n=10: 100,309, n=100: 100,470)
+  - memory_safety: 23 input(s) run under -fsanitize=address,undefined; 1
+    issue(s)
+  - originality: SUSPECT: 7 distinctive fingerprints (minimum 8), compared
+    against 10 file(s); closest known/llm_qwen2.5-7b_2.c at 1.00 sharing 7
+    fingerprints
 
 --- Usefulness & limitations of this evaluation ---
 Useful for:
@@ -122,7 +141,7 @@ Limits of this report:
      (comment ratio, single-letter names), and spot-check a sample of scores
      by hand.
 
-Report fingerprint: sha256:7e4c34768e7ea183b5ba64ffe433800701387980e8a9302ebb2eb31751ae374a
+Report fingerprint: sha256:c2b701fac603df66bfcbee2fb6fac80029900497028a47525767b0993caf47cd
 Rules: sha256:474204f08f31a3d8...  Assets: sha256:6b906fad5b8bd674...
-Tools: platform Linux-aarch64, python 3.12.3, valgrind 3.22.0, cppcheck 2.13.0, lizard 1.17.10
+Tools: cppcheck 2.13.0, lizard 1.17.10, platform Linux-aarch64, python 3.12.3, valgrind 3.22.0
 Compiler: gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0

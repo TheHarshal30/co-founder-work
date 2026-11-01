@@ -2,25 +2,33 @@
 Problem: max_subarray
 Overall grade: 77.5 / 100
 
-Metric         Weight     Score  Verdict
-correctness        25   17.5/25  7/10 tests pass. First failure: test 08
-                                 (wrong answer).
-syntax              5     2.0/5  3 warning(s): lines 8, 9, 12: ignoring return
-                                 value of 'scanf' declared with attribute
-                                 'warn_unused_result' [-Wunused-result]
-structure           5       5/5  2 function(s), all within complexity 8 and
-                                 length 40; no static-analysis findings.
-modularity          5     3.7/5  main() still holds 93% of the code.
-logical            15   12.5/15  Fails on: large_values, random_stress.
-complexity         15     15/15  O(n) confirmed (required O(n)).
-memory_safety      10    7.5/10  1 issue(s): signed-integer-overflow at
-                                 s04_int_overflow.c:13
-readability        10      6/10  6/10 -- Single-letter identifiers used (a, b,
-                                 n, x); No comments explaining the code
-originality         5       5/5  Max similarity 0.25 (threshold 0.85); not
-                                 flagged.
-safe_io             5     3.3/5  1 code rule(s) violated: check scanf's return
-                                 value so malformed input is detected
+Metric         Weight     Score  Status        Verdict
+correctness        25   17.5/25  OK            7/10 tests pass. First failure:
+                                               test 08 (wrong answer).
+syntax              5     2.0/5  OK            3 warning(s): lines 8, 9, 12:
+                                               ignoring return value of
+                                               'scanf' declared with attribute
+                                               'warn_unused_result' [-Wunused-
+                                               result]
+structure           5       5/5  OK            2 function(s), all within
+                                               complexity 8 and length 40; no
+                                               static-analysis findings.
+modularity          5     3.7/5  OK            main() still holds 93% of the
+                                               code.
+logical            15   12.5/15  OK            Fails on: large_values,
+                                               random_stress.
+complexity         15     15/15  OK            O(n) confirmed (required O(n)).
+memory_safety      10    7.5/10  OK            1 issue(s): signed-integer-
+                                               overflow at
+                                               s04_int_overflow.c:13
+readability        10      6/10  OK            6/10 -- Single-letter
+                                               identifiers used (a, b, n, x);
+                                               No comments explaining the code
+originality         5       5/5  OK            Max similarity 0.15 (threshold
+                                               0.85); not flagged.
+safe_io             5     3.3/5  OK            1 code rule(s) violated: check
+                                               scanf's return value so
+                                               malformed input is detected
 
 --- Where you failed ---
 test 08  (correctness, wrong answer)
@@ -90,6 +98,27 @@ edge case 'random_stress' (random, size 50, seed 2024#33)  (logical, wrong answe
 - check scanf's return value so malformed input is detected [safe_io]
 - Keep main() short: read input, call helpers, print the result. [modularity]
 
+--- Analyzer findings ---
+  - correctness: 7/10 tests passed
+  - syntax: 3 warning(s), 0 error(s) with -Wall -Wextra -std=c11 -O2
+  - syntax: line 8: ignoring return value of 'scanf' declared with attribute
+    'warn_unused_result'
+  - syntax: line 9: ignoring return value of 'scanf' declared with attribute
+    'warn_unused_result'
+  - syntax: line 12: ignoring return value of 'scanf' declared with attribute
+    'warn_unused_result'
+  - modularity: 2 function(s) (expected at least 2)
+  - logical: corner cases: single_element 3/3, all_negative 3/3, all_zero 1/1,
+    mixed 3/3, large_values 0/2, best_at_edges 2/2, random_stress 33/40
+  - complexity: estimated O(n), required O(n) (instructions: n=500: 651,574,
+    n=1000: 1,202,642, n=2000: 2,306,536, n=4000: 4,516,084, n=8000:
+    8,931,834)
+  - memory_safety: 20 input(s) run under -fsanitize=address,undefined; 1
+    issue(s)
+  - originality: NOT FLAGGED: 20 distinctive fingerprints (minimum 8),
+    compared against 9 file(s); closest known/llm_qwen2.5-7b_3.c at 0.15
+    sharing 4 fingerprints
+
 --- Usefulness & limitations of this evaluation ---
 Useful for:
   1. Grading a large programming lab
@@ -155,7 +184,7 @@ Limits of this report:
      (comment ratio, single-letter names), and spot-check a sample of scores
      by hand.
 
-Report fingerprint: sha256:516c0dbaf7362a28fd1a6d7a7c0bbf8bfdf1f01e22e3affca3964a1af3ee3735
+Report fingerprint: sha256:104dde4d808737dd093fa91763197e5e3f3cf1f8f3fa4c4f7b7c2c51a8429914
 Rules: sha256:77de558f313faf2c...  Assets: sha256:16472fe8ede8495a...
-Tools: platform Linux-aarch64, python 3.12.3, valgrind 3.22.0, cppcheck 2.13.0, lizard 1.17.10
+Tools: cppcheck 2.13.0, lizard 1.17.10, platform Linux-aarch64, python 3.12.3, valgrind 3.22.0
 Compiler: gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0

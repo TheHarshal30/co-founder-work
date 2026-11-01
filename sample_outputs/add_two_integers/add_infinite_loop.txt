@@ -2,25 +2,34 @@
 Problem: add_two_integers
 Overall grade: 39.0 / 100  (PARTIAL REPORT)
 
-Metric         Weight     Score  Verdict
-correctness        20      0/20  Skipped: the program did not halt on the
-                                 sample input (suspected infinite loop)
-syntax             10     10/10  No compiler warnings.
-structure          10     10/10  1 function(s), all within complexity 8 and
-                                 length 40; no static-analysis findings.
-modularity         10      3/10  Only main() is defined; all logic lives in
-                                 one function.
-logical            10      0/10  Skipped: the program did not halt on the
-                                 sample input (suspected infinite loop)
-complexity         10      0/10  Skipped: the program did not halt on the
-                                 sample input (suspected infinite loop)
-memory_safety      10      0/10  Skipped: the program did not halt on the
-                                 sample input (suspected infinite loop)
-readability        10      6/10  6/10 -- Identifiers are not very descriptive
-                                 (value, total); Incorrect comment about
-                                 scanf's return value
-originality        10     10/10  Max similarity 0.18 (threshold 0.85); not
-                                 flagged.
+Metric         Weight     Score  Status        Verdict
+correctness        20      0/20  SKIPPED       Skipped: the program did not
+                                               halt on the sample input
+                                               (suspected infinite loop)
+syntax             10     10/10  OK            No compiler warnings.
+structure          10     10/10  OK            1 function(s), all within
+                                               complexity 8 and length 40; no
+                                               static-analysis findings.
+modularity         10      3/10  OK            Only main() is defined; all
+                                               logic lives in one function.
+logical            10      0/10  SKIPPED       Skipped: the program did not
+                                               halt on the sample input
+                                               (suspected infinite loop)
+complexity         10      0/10  SKIPPED       Skipped: the program did not
+                                               halt on the sample input
+                                               (suspected infinite loop)
+memory_safety      10      0/10  SKIPPED       Skipped: the program did not
+                                               halt on the sample input
+                                               (suspected infinite loop)
+readability        10      6/10  OK            6/10 -- Identifiers are not
+                                               very descriptive (value,
+                                               total); Incorrect comment about
+                                               scanf's return value
+originality        10     10/10  OK            Not judged: only 7 distinctive
+                                               fingerprints (minimum 8); the
+                                               code is almost all the shape
+                                               every solution shares. Closest:
+                                               known/llm_qwen2.5-7b_1.c
 
 --- Flags ---
 - [suspected_infinite_loop] No output on the sample input within the time
@@ -35,6 +44,23 @@ originality        10     10/10  Max similarity 0.18 (threshold 0.85); not
   [readability]
 - Add a space after `while` and before the condition for better readability
   [readability]
+
+--- Analyzer findings ---
+  - syntax: 0 warning(s), 0 error(s) with -Wall -Wextra -Werror -std=c11 -O2
+  - modularity: 1 function(s) (expected at least 2)
+  - originality: INSUFFICIENT EVIDENCE: 7 distinctive fingerprints (minimum
+    8), compared against 10 file(s); closest known/llm_qwen2.5-7b_1.c at 0.00
+    sharing 0 fingerprints
+
+--- Not performed / skipped, and why ---
+  - correctness (SKIPPED): Skipped: the program did not halt on the sample
+    input (suspected infinite loop)
+  - logical (SKIPPED): Skipped: the program did not halt on the sample input
+    (suspected infinite loop)
+  - complexity (SKIPPED): Skipped: the program did not halt on the sample
+    input (suspected infinite loop)
+  - memory_safety (SKIPPED): Skipped: the program did not halt on the sample
+    input (suspected infinite loop)
 
 --- Usefulness & limitations of this evaluation ---
 Useful for:
@@ -101,7 +127,7 @@ Limits of this report:
      (comment ratio, single-letter names), and spot-check a sample of scores
      by hand.
 
-Report fingerprint: sha256:b6754c4b461f0ec50e7041a2787954304e35c3c8baa0488623736962c3b57d48
+Report fingerprint: sha256:bbafbda22b074bcdc56f861dded637d2b77f40bbe070b17511ba0152f87376df
 Rules: sha256:474204f08f31a3d8...  Assets: sha256:6b906fad5b8bd674...
-Tools: platform Linux-aarch64, python 3.12.3, valgrind 3.22.0, cppcheck 2.13.0, lizard 1.17.10
+Tools: cppcheck 2.13.0, lizard 1.17.10, platform Linux-aarch64, python 3.12.3, valgrind 3.22.0
 Compiler: gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0

@@ -31,6 +31,8 @@ GOOD_ADD = '#include <stdio.h>\nint main(void){long long a,b;if(scanf("%lld %lld
            'printf("%lld\\n",a+b);return 0;}\n'
 BRUTE_ADD = '#include <stdio.h>\nint main(void){long long a,b,s=0;if(scanf("%lld %lld",&a,&b)!=2)return 1;' \
             's=a;s+=b;printf("%lld\\n",s);return 0;}\n'
+CAREFUL_ADD = '#include <stdio.h>\n#include <inttypes.h>\nint main(void){int64_t a,b;' \
+              'if(scanf("%" SCNd64 " %" SCNd64,&a,&b)!=2)return 1;printf("%" PRId64 "\\n",a+b);return 0;}\n'
 INT_ADD = '#include <stdio.h>\nint main(void){int a,b;if(scanf("%d %d",&a,&b)!=2)return 1;' \
           'printf("%d\\n",a+b);return 0;}\n'
 
@@ -56,7 +58,7 @@ class FakeLLM(LLMClient):
             {"name": "overflow", "why": "sum exceeds int", "inputs": ["2147483647 1", "-2147483648 -1\n"]},
             {"name": "bad", "why": "invalid on purpose", "inputs": ["1 2 3\n", "99999999999 1\n"]},
         ]
-        self.programs = programs or {"simplest": BRUTE_ADD, "efficient": GOOD_ADD, "careful": GOOD_ADD + "\n"}
+        self.programs = programs or {"simplest": BRUTE_ADD, "efficient": GOOD_ADD, "careful": CAREFUL_ADD}
         self.digest = digest
         self.calls = []
 
@@ -131,9 +133,9 @@ def test_explicit_workflow_still_rejects_missing_assets(tmp_path):
         load_rules(d / "rules.json", REGISTRY)
 
 
-# -- the minimal workflow, no oracle ---------------------------------------------------
+# -- the minimal workflow, oracle turned off -------------------------------------------
 def test_minimal_workflow_without_oracle_runs_what_it_can_and_awards_nothing_else(tmp_path):
-    d = minimal_problem(tmp_path)
+    d = minimal_problem(tmp_path, oracle="none")
     before = hash_paths([d])
     r, prep, store = graded(d, FakeLLM(tmp_path), tmp_path)
     by = {m["name"]: m for m in r["metrics"]}
@@ -166,11 +168,13 @@ def test_submission_is_never_shown_to_the_model_nor_used_as_answer_key(tmp_path)
     prompts = "\n".join(m["content"] for call in llm.calls for m in call)
     assert source.strip() not in prompts and 'printf("%d\\n",a+b)' not in prompts
     outs = [a for a in store.assets(prep.bundle_key) if a.kind == "test_output"]
-    assert outs == []  # nothing to compare against -> no expected outputs were invented
+    # every expected output is the instructor's or the validated oracle's, never the submission's
+    assert outs and {a.origin for a in outs} <= {"instructor_example", "llm_oracle"}
+    assert "2147483648" in next(a.content for a in outs if a.name.endswith("overflow.out"))  # add.c prints a wrapped value
 
 
 def test_instructor_examples_give_partial_correctness(tmp_path):
-    d = minimal_problem(tmp_path, examples=[{"input": "2147483647 1\n", "output": "2147483648\n"},
+    d = minimal_problem(tmp_path, oracle="none", examples=[{"input": "2147483647 1\n", "output": "2147483648\n"},
                                             {"input": "-3 -4\n", "output": "-7\n"}])
     rules = json.loads((d / "rules.json").read_text())
     rules["sample_output"] = "12\n"
@@ -182,7 +186,7 @@ def test_instructor_examples_give_partial_correctness(tmp_path):
     assert r["asset_preparation"]["metrics"]["correctness"]["status"] == "partial"
 
 
-# -- the LLM oracle (opt-in) -----------------------------------------------------------
+# -- the LLM oracle (on by default) -------------------------------------------------------
 EXAMPLES = [{"input": "7 5\n", "output": "12\n"}, {"input": "2147483647 1\n", "output": "2147483648\n"}]
 
 
@@ -196,7 +200,8 @@ def test_consensus_oracle_enables_correctness_and_finds_overflow(tmp_path):
     assert any("overflow" in c["why"].lower() for c in r["counterexamples"])
     assert any(f["type"] == "llm_oracle_used" for f in r["flags"])
     oracle = [a for a in store.assets(prep.bundle_key) if a.kind == "oracle"]
-    assert [a.status for a in oracle].count("validated") == 1
+    assert [a.status for a in oracle].count("validated") == 3  # all three agreed
+    assert [a.path for a in store.assets(prep.bundle_key) if a.kind == "reference"] == ["reference/reference.c"]
 
 
 def test_clean_submission_passes_against_the_oracle(tmp_path):
@@ -219,19 +224,27 @@ def test_oracle_that_fails_an_instructor_example_is_rejected(tmp_path):
     assert c["evidence"]["tests_total"] == 2
 
 
-def test_disagreeing_oracle_candidates_are_rejected(tmp_path):
+def test_disagreeing_oracle_candidates_only_supply_agreed_inputs(tmp_path):
     # both reproduce the two examples, but disagree on e.g. -2147483648 -1
     wrong = '#include <stdio.h>\nint main(void){long long a,b;if(scanf("%lld %lld",&a,&b)!=2)return 1;' \
             'if(a<-5)a=-a;printf("%lld\\n",a+b);return 0;}\n'
     d = minimal_problem(tmp_path, oracle="llm_consensus", examples=EXAMPLES, oracle_candidates=2)
     llm = FakeLLM(tmp_path, programs={"simplest": wrong, "efficient": GOOD_ADD, "careful": GOOD_ADD})
-    r, prep, _ = graded(d, llm, tmp_path)
-    assert r["asset_preparation"]["expected_outputs_from"] == "instructor_outputs"
-    assert any("disagree" in f["detail"] for f in r["asset_preparation"]["failures"])
+    r, prep, store = graded(d, llm, tmp_path)
+    prep_sec = r["asset_preparation"]
+    assert prep_sec["expected_outputs_from"] == "llm_consensus_inputs"
+    assert prep_sec["oracle"]["mode"] == "partial" and prep_sec["oracle"]["disagreeing_inputs"] > 0
+    assert any("disagree" in f["detail"] for f in prep_sec["failures"])
+    # no program is trusted for unseen inputs: no generated reference, no random stress tests
+    assert not [a for a in store.assets(prep.bundle_key) if a.kind == "reference"]
+    assert any("random stress" in s and "trusted" in s for s in prep_sec["metrics"]["logical"]["skipped"])
+    assert any("oracle candidates disagree" in s for s in prep_sec["metrics"]["logical"]["skipped"])
+    logical = next(m for m in r["metrics"] if m["name"] == "logical")
+    assert logical["status"] == "ok" and sum(f["total"] for f in logical["evidence"]["families"]) > 0
 
 
 def test_oracle_needs_enough_instructor_examples(tmp_path):
-    d = minimal_problem(tmp_path, oracle="llm_consensus", examples=EXAMPLES[:1])
+    d = minimal_problem(tmp_path, oracle="llm_consensus", examples=EXAMPLES[:1], min_examples_for_oracle=2)
     r, _, _ = graded(d, FakeLLM(tmp_path), tmp_path)
     assert any("at least 2" in f["detail"] for f in r["asset_preparation"]["failures"])
 
@@ -367,11 +380,11 @@ def test_grades_are_reproducible_across_cache_hits(tmp_path):
 def test_tampered_materialised_assets_are_rebuilt_from_the_database(tmp_path):
     d = minimal_problem(tmp_path)
     prep, store = prepare(d, FakeLLM(tmp_path), tmp_path)
-    (prep.bundle_dir / "replay_inputs.json").write_text('{"x": ["evil"]}')
+    (prep.bundle_dir / "inputs" / "replay_inputs.json").write_text('{"x": ["evil"]}')
     (prep.bundle_dir / "extra.json").write_text("{}")
     again, _ = prepare(d, FakeLLM(tmp_path), tmp_path)
     assert not (again.bundle_dir / "extra.json").exists()
-    assert "evil" not in (again.bundle_dir / "replay_inputs.json").read_text()
+    assert "evil" not in (again.bundle_dir / "inputs" / "replay_inputs.json").read_text()
 
 
 def test_asset_paths_cannot_escape_the_bundle(tmp_path):

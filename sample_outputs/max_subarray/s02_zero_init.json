@@ -426,37 +426,53 @@
       "status": "ok",
       "score": 1.0,
       "contribution": 5.0,
-      "feedback": "Max similarity 0.32 (threshold 0.85); not flagged.",
+      "feedback": "Max similarity 0.33 (threshold 0.85); not flagged.",
       "evidence": {
         "method": "winnowing k=5 w=4, Dice overlap",
         "threshold": 0.85,
-        "fingerprints": 28,
+        "min_fingerprints": 8,
+        "min_shared_fingerprints": 8,
+        "fingerprints": 22,
         "ignored_reference_fingerprints": 33,
+        "ignored_boilerplate_fingerprints": 6,
         "compared_against": 9,
         "top_matches": [
           {
             "file": "submissions/s01_kadane.c",
             "kind": "submission",
             "source": "classmate",
-            "similarity": 0.323,
-            "shared_lines": "4, 13, 15, 18, 22"
+            "similarity": 0.333,
+            "raw_similarity": 0.323,
+            "fingerprints": 32,
+            "shared_fingerprints": 9,
+            "shared_lines": "4, 13, 15, 18, 22",
+            "verdict": "below_threshold"
           },
           {
             "file": "submissions/s06_copy.c",
             "kind": "submission",
             "source": "classmate",
-            "similarity": 0.323,
-            "shared_lines": "4, 13, 15, 18, 22"
+            "similarity": 0.333,
+            "raw_similarity": 0.323,
+            "fingerprints": 32,
+            "shared_fingerprints": 9,
+            "shared_lines": "4, 13, 15, 18, 22",
+            "verdict": "below_threshold"
           },
           {
-            "file": "submissions/s04_int_overflow.c",
-            "kind": "submission",
-            "source": "classmate",
-            "similarity": 0.25,
-            "shared_lines": "7-8, 18, 20-21"
+            "file": "known/llm_qwen2.5-7b_3.c",
+            "kind": "known",
+            "source": "LLM-generated (qwen2.5:7b)",
+            "similarity": 0.143,
+            "raw_similarity": 0.149,
+            "fingerprints": 34,
+            "shared_fingerprints": 4,
+            "shared_lines": "7, 10, 15, 22",
+            "verdict": "below_threshold"
           }
         ],
-        "max_similarity": 0.323
+        "max_similarity": 0.333,
+        "verdict": "not_flagged"
       }
     },
     {
@@ -613,23 +629,23 @@
       }
     ]
   },
-  "fingerprint": "sha256:0c549260a0327d21a3f944ca37e9212d6e636de4ca79055ff22c02decac719be",
+  "fingerprint": "sha256:28b58f24052180f4f1b57800afd207173c95a02c80c6215be353ad4f897d64d9",
   "meta": {
     "report_version": 1,
-    "generated_at": "2026-10-19T13:26:04Z",
-    "elapsed_s": 0.87,
+    "generated_at": "2026-11-01T13:16:12Z",
+    "elapsed_s": 0.78,
     "timings_s": {
-      "first_pass": 0.021,
+      "first_pass": 0.036,
       "modularity": 0.0,
-      "readability": 0.002,
+      "structure": 0.007,
       "safe_io": 0.0,
-      "structure": 0.009,
-      "syntax": 0.015,
-      "originality": 0.017,
-      "correctness": 0.107,
-      "logical": 0.156,
-      "complexity": 0.726,
-      "memory_safety": 0.841
+      "readability": 0.005,
+      "originality": 0.014,
+      "syntax": 0.046,
+      "correctness": 0.113,
+      "logical": 0.174,
+      "complexity": 0.667,
+      "memory_safety": 0.727
     },
     "llm_cache": {
       "hits": 4,

@@ -4,6 +4,7 @@ import json
 import threading
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -108,3 +109,72 @@ def test_upload_identical_to_a_corpus_file_is_not_compared_with_itself(server):
     body["submission"]["name"] = "renamed.c"  # a copy under another name is still a copy
     _, other = call(server, "/api/grade", body)
     assert "submissions/add_clean.c" in matches(other)
+
+
+def fetch(base, path):
+    with urllib.request.urlopen(base + path, timeout=30) as r:
+        return r.status, dict(r.headers), r.read().decode()
+
+
+def test_txt_report_download_and_button(server):
+    _, _, page = fetch(server, "/")
+    assert "Download TXT Report" in page and "Download JSON" in page
+    source = (ADD / "submissions" / "add.c").read_text()
+    _, data = call(server, "/api/grade", {"submission": {"name": "add.c", "source": source},
+                                          "rules": {"path": "add_two_integers/rules.json"}, "offline": True})
+    status, headers, text = fetch(server, f"/api/grades/{data['id']}/report.txt")
+    assert status == 200 and headers["Content-Type"].startswith("text/plain")
+    assert f'attachment; filename="add_grade{data["id"]}_report.txt"' == headers["Content-Disposition"]
+    assert text == data["text"]
+    for needle in ("Overall grade:", "Status", "--- Analyzer findings ---", "correctness: ", "tests passed"):
+        assert needle in text, needle
+    with pytest.raises(urllib.error.HTTPError):
+        fetch(server, "/api/grades/999/report.txt")
+
+
+def test_bundle_detail_shows_where_every_file_is_stored(server):
+    rules = {"problem": "add_two_integers", "time_limit_s": 1, "memory_limit_mb": 64, "sample_input": "7 5\n",
+             "include_usefulness_limitations": False,
+             "asset_generation": {"input_spec": ADD_SPEC, "examples": EXAMPLES},
+             "metrics": [{"name": "correctness", "analyzer": "io_tests", "weight": 0.5, "params": {"testset_dir": "tests/"}},
+                         {"name": "memory_safety", "analyzer": "sanitizer_run", "weight": 0.5, "params": {"valgrind": False}}]}
+    body = {"submission": {"name": "s.c", "source": (ADD / "submissions" / "add.c").read_text()},
+            "rules": {"json": json.dumps(rules)}, "generate_assets": True, "offline": True}
+    _, data = call(server, "/api/grade", body)
+    key = data["report"]["asset_preparation"]["bundle_key"]
+    _, detail = call(server, f"/api/bundles/{key}")
+    storage = Path(detail["storage_dir"])
+    assert storage.parts[-3:-1] == ("generated", "add_two_integers") and storage.name == detail["generation_id"]
+    assert set(detail["summary_files"]) == {"manifest.json", "validation/report.json"}
+    on_disk = [a for a in detail["assets"] if a["file"]]
+    assert on_disk and all(Path(a["file"]).read_text() == a["content"] for a in on_disk if not a["truncated"])
+    assert {a["group"] for a in detail["assets"]} == {"instructor", "generated"}
+    assert any(a["path"] == "spec/input_spec.json" and a["origin"] == "instructor" for a in detail["assets"])
+    assert any(m["name"] == "asset_generation.examples" for m in detail["manifest"]["instructor_material"])
+    _, bundles = call(server, "/api/bundles")
+    assert bundles["bundles"][0]["generation_id"] == detail["generation_id"]
+
+
+
+def test_host_path_maps_the_docker_mount_back_to_the_users_folder(tmp_path, monkeypatch):
+    from autograder.web.server import host_path
+
+    f = tmp_path / ".autograder-cache" / "generated" / "p" / "abc" / "spec" / "input_spec.json"
+    monkeypatch.chdir(tmp_path)  # the container's /work
+    monkeypatch.delenv("AUTOGRADER_HOST_WORKDIR", raising=False)
+    assert host_path(f) == str(f.resolve())
+    monkeypatch.setenv("AUTOGRADER_HOST_WORKDIR", "C:\\Users\\me\\course")
+    assert host_path(f) == "C:\\Users\\me\\course\\.autograder-cache\\generated\\p\\abc\\spec\\input_spec.json"
+    monkeypatch.setenv("AUTOGRADER_HOST_WORKDIR", "C:/Users/me/course")
+    assert host_path(f) == "C:/Users/me/course/.autograder-cache/generated/p/abc/spec/input_spec.json"
+    monkeypatch.setenv("AUTOGRADER_HOST_WORKDIR", "/home/me/course/")
+    assert host_path(f) == "/home/me/course/.autograder-cache/generated/p/abc/spec/input_spec.json"
+
+
+def test_llm_status_endpoint_reports_offline_and_bad_input(server):
+    _, st = call(server, "/api/llm?offline=1&model=qwen2.5:7b")
+    assert st["ok"] is False and "offline" in st["error"]
+    status, err = call(server, "/api/llm?model=bad%20name;rm")
+    assert status == 400 and "unexpected characters" in err["error"]
+    _, info = call(server, "/api/problems")
+    assert info["llm"]["provider"] == "ollama"

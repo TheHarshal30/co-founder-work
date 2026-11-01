@@ -132,7 +132,8 @@ const STATUS_CLASS = {
 const badge = (s) => h("span", { class: "badge " + (STATUS_CLASS[s] || "") }, String(s).replace(/_/g, " "));
 const FLAG_CLASS = { compile_failed: "b-bad", suspected_infinite_loop: "b-bad", tests_not_performed: "b-bad",
   asset_generation_failed: "b-warn", llm_oracle_used: "b-warn", tests_incomplete: "b-warn", incomplete_grade: "b-warn",
-  suspected_plagiarism: "b-bad", suspected_external_copy: "b-bad" };
+  suspected_plagiarism: "b-bad", suspected_external_copy: "b-bad", similarity_suspect: "b-warn",
+  llm_oracle_unanchored: "b-warn", input_format_from_submission: "b-warn" };
 const fmtTime = (t) => t ? new Date(t).toLocaleString() : "";
 const short = (s, n = 12) => (s || "").replace(/^sha256:/, "").slice(0, n);
 
@@ -165,7 +166,9 @@ function renderReport(report, text, gradeId) {
         h("div", { class: "meta" }, `Problem ${report.problem}` + (gradeId ? ` · grade #${gradeId}` : "")),
         h("div", { class: "row", style: "margin-top:6px" }, status)),
       h("div", { class: "spacer" }),
-      h("button", { class: "btn ghost", onclick: () => download(report) }, "Download JSON"))));
+      h("div", { class: "row" },
+        h("button", { class: "btn", id: "download-txt", onclick: () => downloadText(report, text, gradeId) }, "Download TXT Report"),
+        h("button", { class: "btn ghost", onclick: () => download(report) }, "Download JSON")))));
 
   wrap.append(h("div", { class: "card" }, h("h2", {}, "Metrics"), h("div", { class: "tablewrap" },
     h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Metric"), h("th", { class: "num" }, "Weight"),
@@ -200,9 +203,13 @@ function renderReport(report, text, gradeId) {
       h("button", { class: "btn ghost", onclick: () => { showTab("assets"); openBundle(prep.bundle_key); } }, "Inspect bundle")),
     h("p", {}, "Expected outputs from: ", h("strong", {}, prep.expected_outputs_from.replace(/_/g, " ")),
       h("span", { class: "meta" }, " — the submission's own output is never used as the answer key.")),
+    prep.spec_basis ? h("p", { class: "meta" }, "Input format: " + prep.spec_basis) : null,
+    prep.oracle && prep.oracle.reason ? h("p", { class: "meta" }, `Oracle (${(prep.oracle.mode || "").replace(/_/g, " ")}): ${prep.oracle.reason}`) : null,
+    report.meta && report.meta.assets ? h("p", { class: "meta mono" }, "Stored in " + report.meta.assets.bundle_dir + (report.meta.assets.cache_hit ? " (reused)" : " (generated now)")) : null,
     h("div", { class: "chips" }, Object.entries(prep.assets || {}).map(([k, v]) => h("span", { class: "badge " + (STATUS_CLASS[k] || "") }, `${k} ${v}`))),
     h("table", {}, h("tbody", {}, Object.entries(prep.metrics).map(([n, m]) =>
-      h("tr", {}, h("td", { style: "font-weight:600" }, n), h("td", {}, badge(m.status)), h("td", {}, m.detail))))),
+      h("tr", {}, h("td", { style: "font-weight:600" }, n), h("td", {}, badge(m.status)),
+        h("td", {}, m.detail, (m.skipped || []).length ? h("ul", { class: "plain meta" }, m.skipped.map((x) => h("li", {}, "skipped " + x))) : null))))),
     prep.failures.length ? h("div", {}, h("h3", {}, "Generation failures (not the student's fault)"),
       h("ul", { class: "plain" }, prep.failures.map((f) => h("li", {}, h("strong", {}, f.step + ": "), f.detail)))) : null));
 
@@ -213,6 +220,13 @@ function renderReport(report, text, gradeId) {
     h("div", { class: "meta" }, Object.entries(tv).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(" · ")),
     text ? h("details", { style: "margin-top:10px" }, h("summary", {}, "Plain-text report (what the student receives)"), h("pre", {}, text)) : null));
   return wrap;
+}
+function downloadText(report, text, gradeId) {
+  // the server renders the same text the CLI writes; fall back to the copy we already have
+  const stem = report.submission.replace(/\.c$/, "");
+  const a = gradeId ? h("a", { href: `/api/grades/${gradeId}/report.txt`, download: `${stem}_grade${gradeId}_report.txt` })
+    : h("a", { href: URL.createObjectURL(new Blob([text || ""], { type: "text/plain" })), download: stem + "_report.txt" });
+  document.body.append(a); a.click(); a.remove();
 }
 function download(report) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: "application/json" }));
@@ -245,6 +259,25 @@ async function initGrade() {
   readFile(subFile, subText);
   const gen = h("input", { type: "checkbox", id: "gen" });
   const off = h("input", { type: "checkbox", id: "off", checked: info.offline_default });
+  const llmDefaults = info.llm || { provider: "ollama", model: "qwen2.5:7b" };
+  const provider = h("select", { id: "llm-provider" }, ["ollama", "groq", "openai_compat"].map((p) => h("option", { value: p, selected: p === llmDefaults.provider }, p)));
+  const model = h("input", { type: "text", id: "llm-model", value: llmDefaults.model });
+  const llmStatus = h("div", { class: "hint", id: "llm-status" });
+  const checkLLM = async () => {
+    llmStatus.replaceChildren(h("span", { class: "spinner" }), " checking…");
+    try {
+      const q = new URLSearchParams({ provider: provider.value, model: model.value.trim(), offline: off.checked ? "1" : "0" });
+      const st = await api("/api/llm?" + q);
+      llmStatus.replaceChildren(st.ok ? h("span", { class: "badge b-ok" }, "reachable") : h("span", { class: "badge b-bad" }, "not available"),
+        " ", st.ok ? `${st.provider} ${st.model} at ${st.base_url}` : st.error);
+    } catch (e) { llmStatus.replaceChildren(h("span", { class: "badge b-bad" }, "error"), " ", e.message); }
+  };
+  const llmBox = h("div", { hidden: true },
+    h("div", { class: "row", style: "margin-top:4px" }, h("div", { style: "width:130px" }, provider), h("div", { class: "spacer" }, model),
+      h("button", { type: "button", class: "btn ghost", onclick: checkLLM }, "Check")),
+    llmStatus);
+  gen.addEventListener("change", () => { llmBox.hidden = !gen.checked; if (gen.checked && !llmStatus.textContent) checkLLM(); });
+  off.addEventListener("change", () => { if (gen.checked) checkLLM(); });
   const go = h("button", { class: "btn", type: "submit" }, "Grade");
   const err = h("div");
   const out = h("div", {}, h("div", { class: "card empty" }, "The report appears here."));
@@ -256,6 +289,8 @@ async function initGrade() {
   const setMode = (m) => {
     state.rulesMode = m; folderBox.hidden = m !== "folder"; uploadBox.hidden = m !== "upload";
     if (m === "upload") gen.checked = true;
+    llmBox.hidden = !gen.checked;
+    if (gen.checked && !llmStatus.textContent) checkLLM();
     modeHolder.replaceChildren(seg([["folder", "From folder"], ["upload", "Upload rules.json"]], m, setMode));
   };
   setMode(info.rules.length ? "folder" : "upload");
@@ -265,7 +300,8 @@ async function initGrade() {
     err.replaceChildren();
     const body = { submission: { name: subName.value.trim(), source: subText.value },
       rules: state.rulesMode === "folder" ? { path: rulesSel.value } : { json: rulesText.value },
-      generate_assets: gen.checked, offline: off.checked };
+      generate_assets: gen.checked, offline: off.checked,
+      llm_provider: provider.value, llm_model: model.value.trim() };
     go.disabled = true; go.replaceChildren(h("span", { class: "spinner" }), " Grading…");
     out.replaceChildren(h("div", { class: "card empty" }, gen.checked
       ? "Preparing assets and grading. The first run with a new rules file can take a while if the LLM is asked for assets."
@@ -282,7 +318,8 @@ async function initGrade() {
     h("label", { class: "field" }, "Rules"), modeHolder, h("div", { style: "height:8px" }), folderBox, uploadBox,
     h("label", { class: "field" }, "Submission"), subFile, h("div", { style: "height:6px" }), subName, h("div", { style: "height:6px" }), subText,
     h("div", { class: "check" }, gen, h("label", { for: "gen" }, h("strong", {}, "Generate missing assets"),
-      h("div", { class: "hint" }, "Detect, generate and validate tests, generators and corner cases the rules need but the folder lacks. Nothing is generated if the folder is complete."))),
+      h("div", { class: "hint" }, "Infer the problem from its title, rules and examples, then generate and independently validate the input format, generator, corner cases and oracle programs the rules need but the folder lacks. Nothing is generated if the folder is complete."))),
+    llmBox,
     h("div", { class: "check" }, off, h("label", { for: "off" }, h("strong", {}, "Offline"),
       h("div", { class: "hint" }, "Never call an LLM; reuse stored assets and cached answers only."))),
     h("div", { class: "row", style: "margin-top:12px" }, go), err);
@@ -298,15 +335,34 @@ async function loadAssets() {
   if (!data.bundles.length) return tab.replaceChildren(h("div", { class: "card empty" },
     "No generated asset bundles yet. Grade with “Generate missing assets” on a rules file that lacks assets."));
   tab.replaceChildren(h("div", { class: "card" }, h("h2", {}, "Generated asset bundles"),
-    h("p", { class: "meta" }, "One bundle per rules + statement + instructor assets + model + generator version. Reused until one of those changes."),
+    h("p", { class: "meta" }, "One bundle per rules + statement + instructor assets + model + generator version, stored under .autograder-cache/generated/<problem>/<generation id>/ and reused by every later grade until one of those changes."),
     h("div", { class: "tablewrap" }, h("table", {},
-      h("thead", {}, h("tr", {}, ["Problem", "Created", "Model", "Expected outputs from", "Assets", "Grades", "Key"].map((t) => h("th", {}, t)))),
+      h("thead", {}, h("tr", {}, ["Problem", "Generation", "Created", "Model", "Expected outputs from", "Assets", "Grades"].map((t) => h("th", {}, t)))),
       h("tbody", {}, data.bundles.map((b) => h("tr", { class: "click", onclick: () => openBundle(b.bundle_key) },
-        h("td", { style: "font-weight:600" }, b.problem), h("td", {}, fmtTime(b.created_at)),
-        h("td", {}, `${b.model_provider}/${b.model_name}`),
+        h("td", { style: "font-weight:600" }, b.problem), h("td", { class: "mono" }, b.generation_id || short(b.bundle_key, 16)),
+        h("td", {}, fmtTime(b.created_at)), h("td", {}, `${b.model_provider}/${b.model_name}`),
         h("td", {}, (b.expected_outputs_from || "").replace(/_/g, " ")),
         h("td", {}, h("div", { class: "chips", style: "margin:0" }, Object.entries(b.counts).map(([k, v]) => h("span", { class: "badge " + (STATUS_CLASS[k] || "") }, `${k} ${v}`)))),
-        h("td", { class: "num" }, b.grades), h("td", { class: "mono" }, short(b.bundle_key)))))))));
+        h("td", { class: "num" }, b.grades))))))));
+}
+function assetTable(rows, empty) {
+  if (!rows.length) return h("div", { class: "meta" }, empty);
+  const body = h("tbody");
+  for (const a of rows) {
+    const row = h("tr", { class: a.content ? "click" : "" }, h("td", {}, badge(a.status)), h("td", {}, a.kind),
+      h("td", {}, h("div", { class: "mono", style: "font-weight:600" }, a.path || a.name), a.path && a.path !== a.name ? h("div", { class: "meta" }, a.name) : null),
+      h("td", {}, a.origin.replace(/_/g, " ")), h("td", {}, a.detail || ""),
+      h("td", { class: "mono meta", style: "word-break:break-all" }, a.file || (a.content ? "database only" : "")));
+    body.append(row);
+    if (a.content) {
+      const detail = h("tr", { hidden: true }, h("td", { colspan: 6 },
+        a.file ? h("div", { class: "meta mono", style: "margin-bottom:4px" }, a.file) : null,
+        h("pre", {}, a.content + (a.truncated ? `\n… (truncated; ${a.size} characters in total)` : ""))));
+      row.addEventListener("click", () => { detail.hidden = !detail.hidden; });
+      body.append(detail);
+    }
+  }
+  return h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, ["Status", "Kind", "File", "Origin", "Validation", "Stored at"].map((t) => h("th", {}, t)))), body));
 }
 async function openBundle(key) {
   const tab = $("#tab-assets");
@@ -314,36 +370,48 @@ async function openBundle(key) {
   let b;
   try { b = await api("/api/bundles/" + key); } catch (e) { return tab.replaceChildren(h("div", { class: "error" }, e.message)); }
   const m = b.manifest;
+  const instructorRows = b.assets.filter((a) => a.group === "instructor");
+  const generatedRows = b.assets.filter((a) => a.group === "generated");
+  const usedRows = b.assets.filter((a) => a.status === "validated" && a.file);
   let filter = "all";
   const statuses = ["all", "validated", "rejected", "skipped", "unavailable"];
   const chips = h("div", { class: "chips" });
-  const body = h("tbody");
+  const genHolder = h("div");
   const draw = () => {
     chips.replaceChildren(...statuses.map((s) => h("button", { "aria-pressed": s === filter, onclick: () => { filter = s; draw(); } },
-      s === "all" ? `all ${b.assets.length}` : `${s} ${b.assets.filter((a) => a.status === s).length}`)));
-    body.replaceChildren(...b.assets.filter((a) => filter === "all" || a.status === filter).map((a) => {
-      const row = h("tr", { class: a.content ? "click" : "" }, h("td", {}, badge(a.status)), h("td", {}, a.kind),
-        h("td", { class: "mono" }, a.name), h("td", {}, a.origin.replace(/_/g, " ")), h("td", {}, a.detail));
-      if (!a.content) return [row];
-      const detail = h("tr", { hidden: true }, h("td", { colspan: 5 }, h("pre", {}, a.content + (a.truncated ? "\n… (truncated)" : ""))));
-      row.addEventListener("click", () => { detail.hidden = !detail.hidden; });
-      return [row, detail];
-    }).flat());
+      s === "all" ? `all ${generatedRows.length}` : `${s} ${generatedRows.filter((a) => a.status === s).length}`)));
+    genHolder.replaceChildren(assetTable(generatedRows.filter((a) => filter === "all" || a.status === filter), "Nothing with this status."));
   };
   draw();
+  const oracle = m.oracle || {};
   tab.replaceChildren(
     h("button", { class: "back", onclick: loadAssets }, "← All bundles"),
-    h("div", { class: "card" }, h("h2", {}, `${b.problem} · bundle ${short(key)}`),
+    h("div", { class: "card" }, h("h2", {}, `${b.problem} · generation ${b.generation_id}`),
       h("div", { class: "meta" }, `${b.provider}/${b.model}` + (b.model_digest ? ` (${short(b.model_digest, 16)})` : "") +
         ` · ${b.generator_version} · created ${fmtTime(b.created_at)}`),
+      h("p", {}, "Stored in ", h("span", { class: "mono" }, b.storage_dir || "(not materialised yet)")),
+      Object.keys(b.summary_files || {}).length ? h("ul", { class: "plain meta mono" }, Object.entries(b.summary_files).map(([n, f]) => h("li", {}, f))) : null,
       h("p", {}, "Expected outputs from: ", h("strong", {}, String(m.expected_outputs_from).replace(/_/g, " "))),
+      m.spec_basis ? h("p", { class: "meta" }, "Input format: " + m.spec_basis) : null,
+      oracle.reason ? h("div", {}, h("h3", {}, "Oracle validation"), h("p", {}, badge(oracle.mode === "full" ? "validated" : oracle.mode === "partial" ? "partial" : oracle.mode === "rejected" ? "rejected" : "unavailable"), " ", oracle.reason),
+        (oracle.candidates || []).length ? h("ul", { class: "plain" }, oracle.candidates.map((c) => h("li", {}, h("strong", {}, c.label + ": "), badge(c.status === "ok" ? "validated" : "rejected"), " ", c.detail || ""))) : null) : null,
       h("h3", {}, "Per metric"),
       h("table", {}, h("tbody", {}, Object.entries(m.metrics).map(([n, x]) => h("tr", {},
-        h("td", { style: "font-weight:600" }, n), h("td", {}, badge(x.status)), h("td", {}, x.detail),
+        h("td", { style: "font-weight:600" }, n), h("td", {}, badge(x.status)),
+        h("td", {}, x.detail, (x.skipped || []).length ? h("ul", { class: "plain meta" }, x.skipped.map((s) => h("li", {}, "skipped " + s))) : null),
         h("td", { class: "meta" }, (x.missing || []).join("; ")))))),
-      m.failures.length ? [h("h3", {}, "Generation failures"), h("ul", { class: "plain" }, m.failures.map((f) => h("li", {}, h("strong", {}, f.step + ": "), f.detail)))] : null),
-    h("div", { class: "card" }, h("h2", {}, "Assets"), h("p", { class: "meta" }, "Every candidate is kept, including rejected ones and the reason. Click a row to see its content."),
-      chips, h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, ["Status", "Kind", "Name", "Origin", "Detail"].map((t) => h("th", {}, t)))), body))),
+      m.failures.length ? [h("h3", {}, "Generation failures (not the student's fault)"), h("ul", { class: "plain" }, m.failures.map((f) => h("li", {}, h("strong", {}, f.step + ": "), f.detail)))] : null),
+    h("div", { class: "card" }, h("h2", {}, "Instructor-provided"),
+      h("p", { class: "meta" }, "Material the instructor published. It is never modified; held-out examples validate the generated oracle without being shown to the model."),
+      (m.instructor_material || []).length ? h("table", {}, h("tbody", {}, m.instructor_material.map((x) => h("tr", {},
+        h("td", { class: "mono", style: "font-weight:600" }, x.name), h("td", {}, x.where), h("td", {}, x.detail))))) : h("div", { class: "meta" }, "No instructor material besides rules.json."),
+      instructorRows.length ? [h("h3", {}, "Instructor assets copied into this bundle"), assetTable(instructorRows, "")] : null),
+    h("div", { class: "card" }, h("h2", {}, "Generated (LLM and deterministic)"),
+      h("p", { class: "meta" }, "Every candidate is kept, including rejected ones with the reason. Click a row to see its content."),
+      chips, genHolder),
+    h("div", { class: "card" }, h("h2", {}, "Validated and used for grading"),
+      h("p", { class: "meta" }, "The files analyzers read, on disk, separate from the instructor's folder."),
+      assetTable(usedRows, "No validated files.")),
     h("div", { class: "card" }, h("h2", {}, "LLM attempts and validation"),
       b.events.length ? h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, ["Step", "Attempt", "Outcome", "Detail"].map((t) => h("th", {}, t)))),
         h("tbody", {}, b.events.map((e) => h("tr", {}, h("td", { class: "mono" }, e.step), h("td", { class: "num" }, e.attempt),

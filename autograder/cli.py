@@ -5,10 +5,13 @@
     autograder verify SUBMISSION.c --rules RULES.json [--runs 3]       [--generate-assets]
     autograder prepare --rules RULES.json      generate + validate missing assets only
     autograder serve [--port 8000]             local web UI: grade, assets, history
+    autograder llm-check [--llm-model M]       is the LLM reachable, is the model pulled?
     autograder check-rules RULES.json
     autograder tools
 
 Without --generate-assets nothing changes: every asset the rules name must exist.
+--llm-provider / --llm-model (or AUTOGRADER_LLM_PROVIDER / AUTOGRADER_LLM_MODEL)
+choose the model that generates assets, overriding the rules' asset_generation.
 """
 
 from __future__ import annotations
@@ -24,6 +27,7 @@ from typing import Any, Dict, List, Optional
 from . import tools
 from .analyzers import REGISTRY
 from .assets import AssetStore, Preparation, prepare_assets
+from .assets.prepare import Config, llm_overrides
 from .coordinator import grade
 from .llm import LLMClient
 from .report import write_reports
@@ -50,12 +54,16 @@ def _store(args) -> Optional[AssetStore]:
         return None
 
 
-def _prepare(args, llm: LLMClient) -> Preparation:
+def _overrides(args) -> Dict[str, str]:
+    return llm_overrides({"provider": getattr(args, "llm_provider", None), "model": getattr(args, "llm_model", None)})
+
+
+def _prepare(args, llm: LLMClient, submission: Optional[Path] = None) -> Preparation:
     store = _store(args)
     if store is None:  # generated assets are only trusted once they are recorded
         store = AssetStore(_cache_root(args) / DB_NAME)
     try:
-        prep = prepare_assets(args.rules, llm, store, _cache_root(args))
+        prep = prepare_assets(args.rules, llm, store, _cache_root(args), submission, _overrides(args))
     finally:
         store.close()
     if prep.overlay is not None:
@@ -65,7 +73,8 @@ def _prepare(args, llm: LLMClient) -> Preparation:
 
 def _load(args, llm: Optional[LLMClient] = None) -> Rules:
     if getattr(args, "generate_assets", False):
-        prep = _prepare(args, llm or _llm(args))
+        sub = Path(args.submission) if getattr(args, "submission", None) else None
+        prep = _prepare(args, llm or _llm(args), sub)
         args._prep = prep
         return load_rules(args.rules, REGISTRY, prep.overlay)
     return load_rules(args.rules, REGISTRY)
@@ -74,12 +83,15 @@ def _load(args, llm: Optional[LLMClient] = None) -> Rules:
 def _print_preparation(prep: Preparation) -> None:
     sec = prep.overlay.report if prep.overlay else {}
     err = sys.stderr
-    print(f"asset preparation: bundle {prep.bundle_key[:16] if prep.bundle_key else '-'} "
-          f"({'cached' if prep.cache_hit else 'generated now'}) in {prep.bundle_dir}", file=err)
+    print(f"asset preparation: generation {sec.get('generation_id', '-')} "
+          f"({'reused' if prep.cache_hit else 'generated now'})", file=err)
+    print(f"  stored in {prep.bundle_dir}", file=err)
     counts = sec.get("assets", {})
     if counts:
         print("  assets: " + ", ".join(f"{k} {v}" for k, v in counts.items()), file=err)
     print(f"  expected outputs from: {sec.get('expected_outputs_from', '-').replace('_', ' ')}", file=err)
+    if (sec.get("oracle") or {}).get("reason"):
+        print(f"  oracle: {sec['oracle']['reason']}", file=err)
     for name, m in sec.get("metrics", {}).items():
         print(f"  {name:<15} {m['status']:<14} {m['detail']}", file=err)
     for f in sec.get("failures", []):
@@ -171,8 +183,29 @@ def cmd_prepare(args) -> int:
 def cmd_serve(args) -> int:
     from .web.server import serve
 
-    serve(Path(args.root), _cache_root(args), args.host, args.port, args.offline)
+    serve(Path(args.root), _cache_root(args), args.host, args.port, args.offline, _overrides(args))
     return 0
+
+
+def cmd_llm_check(args) -> int:
+    """Reachability of the LLM that generates assets (provider/model as the
+    grader would pick them for --rules, or the defaults)."""
+    raw: Dict[str, Any] = {}
+    if args.rules:
+        import json
+
+        raw = json.loads(Path(args.rules).read_text())
+    cfg, problems = Config.from_rules(raw, _overrides(args))
+    if problems:
+        print("error: " + "; ".join(problems), file=sys.stderr)
+        return 2
+    status = _llm(args).check(cfg.provider, cfg.model)
+    where = status.get("base_url") or ""
+    if status["ok"]:
+        print(f"OK: {cfg.provider} model '{cfg.model}' is available at {where}")
+        return 0
+    print(f"NOT AVAILABLE: {status['error']}")
+    return 1
 
 
 def cmd_check_rules(args) -> int:
@@ -196,12 +229,19 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="autograder", description="Rule-driven grader for C programs.")
     sub = p.add_subparsers(dest="command", required=True)
 
+    def llm_flags(sp):
+        sp.add_argument("--llm-provider", default=None, choices=["ollama", "groq", "openai_compat"],
+                        help="LLM provider for asset generation (default: rules, $AUTOGRADER_LLM_PROVIDER, ollama)")
+        sp.add_argument("--llm-model", default=None,
+                        help="model for asset generation (default: rules, $AUTOGRADER_LLM_MODEL, qwen2.5:7b)")
+
     def common(sp, needs_rules=True, assets=True):
         if needs_rules:
             sp.add_argument("--rules", required=True, help="rules JSON file")
         sp.add_argument("--cache", default=None, help="cache folder (default: $AUTOGRADER_CACHE or .autograder-cache)")
         sp.add_argument("--offline", action="store_true", help="never call an LLM; use cached answers only")
         sp.add_argument("--no-db", action="store_true", help="do not record grades in the SQLite database")
+        llm_flags(sp)
         if assets:
             sp.add_argument("--generate-assets", action="store_true",
                             help="generate and validate test assets the rules need but the problem folder lacks")
@@ -236,7 +276,15 @@ def build_parser() -> argparse.ArgumentParser:
     sv.add_argument("--root", default=".", help="folder whose rules.json files the UI offers (default: current)")
     sv.add_argument("--cache", default=None, help="cache folder (default: $AUTOGRADER_CACHE or .autograder-cache)")
     sv.add_argument("--offline", action="store_true", help="tick 'offline' by default in the UI")
+    llm_flags(sv)
     sv.set_defaults(func=cmd_serve)
+
+    lc = sub.add_parser("llm-check", help="check that the asset-generation LLM is reachable")
+    lc.add_argument("--rules", default=None, help="use this rules file's asset_generation settings")
+    lc.add_argument("--cache", default=None)
+    lc.add_argument("--offline", action="store_true")
+    llm_flags(lc)
+    lc.set_defaults(func=cmd_llm_check)
 
     c = sub.add_parser("check-rules", help="validate a rules file")
     c.add_argument("rules")

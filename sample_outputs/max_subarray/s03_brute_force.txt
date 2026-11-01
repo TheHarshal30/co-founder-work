@@ -2,32 +2,37 @@
 Problem: max_subarray
 Overall grade: 73.0 / 100
 
-Metric         Weight     Score  Verdict
-correctness        25     20/25  8/10 tests pass. First failure: test
-                                 09_max_random (timeout).
-syntax              5     4.0/5  1 warning(s): line 26: ignoring return value
-                                 of 'scanf' declared with attribute
-                                 'warn_unused_result' [-Wunused-result]
-structure           5       5/5  2 function(s), all within complexity 8 and
-                                 length 40; no static-analysis findings.
-modularity          5       5/5  2 functions; main() delegates the work (48%
-                                 of the code).
-logical            15     15/15  Handles every corner-case family tested
-                                 (single_element, all_negative, all_zero,
-                                 mixed, large_values, best_at_edges,
-                                 random_stress).
-complexity         15      0/15  Estimated O(n^2), required O(n) (n=500:
-                                 1,532,304, n=1000: 4,712,637, n=2000:
-                                 16,325,035, n=4000: 60,551,583, n=8000:
-                                 233,001,336 instructions).
-memory_safety      10     10/10  No memory or undefined-behaviour errors on 20
-                                 inputs.
-readability        10    4.0/10  4/10 -- Uses single-letter identifiers like
-                                 'a', 'i', 'j'; No comments explaining the
-                                 code
-originality         5       5/5  Max similarity 0.30 (threshold 0.85); not
-                                 flagged.
-safe_io             5       5/5  All 3 code rules satisfied.
+Metric         Weight     Score  Status        Verdict
+correctness        25     20/25  OK            8/10 tests pass. First failure:
+                                               test 09_max_random (timeout).
+syntax              5     4.0/5  OK            1 warning(s): line 26: ignoring
+                                               return value of 'scanf'
+                                               declared with attribute
+                                               'warn_unused_result' [-Wunused-
+                                               result]
+structure           5       5/5  OK            2 function(s), all within
+                                               complexity 8 and length 40; no
+                                               static-analysis findings.
+modularity          5       5/5  OK            2 functions; main() delegates
+                                               the work (48% of the code).
+logical            15     15/15  OK            Handles every corner-case
+                                               family tested (single_element,
+                                               all_negative, all_zero, mixed,
+                                               large_values, best_at_edges,
+                                               random_stress).
+complexity         15      0/15  OK            Estimated O(n^2), required O(n)
+                                               (n=500: 1,532,304, n=1000:
+                                               4,712,637, n=2000: 16,325,035,
+                                               n=4000: 60,551,583, n=8000:
+                                               233,001,336 instructions).
+memory_safety      10     10/10  OK            No memory or undefined-
+                                               behaviour errors on 20 inputs.
+readability        10    4.0/10  OK            4/10 -- Uses single-letter
+                                               identifiers like 'a', 'i', 'j';
+                                               No comments explaining the code
+originality         5       5/5  OK            Max similarity 0.29 (threshold
+                                               0.85); not flagged.
+safe_io             5       5/5  OK            All 3 code rules satisfied.
 
 --- Where you failed ---
 test 09_max_random  (correctness, timeout)
@@ -60,6 +65,23 @@ test 09_max_random  (correctness, timeout)
   [correctness]
 - Fix the warning at line 26: ignoring return value of 'scanf' declared with
   attribute 'warn_unused_result' [-Wunused-result] [syntax]
+
+--- Analyzer findings ---
+  - correctness: 8/10 tests passed
+  - syntax: 1 warning(s), 0 error(s) with -Wall -Wextra -std=c11 -O2
+  - syntax: line 26: ignoring return value of 'scanf' declared with attribute
+    'warn_unused_result'
+  - modularity: 2 function(s) (expected at least 2)
+  - logical: corner cases: single_element 3/3, all_negative 3/3, all_zero 1/1,
+    mixed 3/3, large_values 2/2, best_at_edges 2/2, random_stress 40/40
+  - complexity: estimated O(n^2), required O(n) (instructions: n=500:
+    1,532,304, n=1000: 4,712,637, n=2000: 16,325,035, n=4000: 60,551,583,
+    n=8000: 233,001,336)
+  - memory_safety: 20 input(s) run under -fsanitize=address,undefined; 0
+    issue(s)
+  - originality: NOT FLAGGED: 35 distinctive fingerprints (minimum 8),
+    compared against 9 file(s); closest known/llm_qwen2.5-7b_3.c at 0.29
+    sharing 10 fingerprints
 
 --- Usefulness & limitations of this evaluation ---
 Useful for:
@@ -126,7 +148,7 @@ Limits of this report:
      (comment ratio, single-letter names), and spot-check a sample of scores
      by hand.
 
-Report fingerprint: sha256:bf8c1258686020717a97459cc72b71f2184b2646939ff4073bf34c36f2578bac
+Report fingerprint: sha256:c98c2d53bbea4f6f9563e6950a3f837e1396759c4d185fb726458ba56bad5442
 Rules: sha256:77de558f313faf2c...  Assets: sha256:16472fe8ede8495a...
-Tools: platform Linux-aarch64, python 3.12.3, valgrind 3.22.0, cppcheck 2.13.0, lizard 1.17.10
+Tools: cppcheck 2.13.0, lizard 1.17.10, platform Linux-aarch64, python 3.12.3, valgrind 3.22.0
 Compiler: gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0

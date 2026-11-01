@@ -2,32 +2,37 @@
 Problem: max_subarray
 Overall grade: 93.0 / 100
 
-Metric         Weight     Score  Verdict
-correctness        25     25/25  All 10 tests pass.
-syntax              5       5/5  No compiler warnings.
-structure           5       5/5  3 function(s), all within complexity 8 and
-                                 length 40; no static-analysis findings.
-modularity          5       5/5  3 functions; main() delegates the work (29%
-                                 of the code).
-logical            15     15/15  Handles every corner-case family tested
-                                 (single_element, all_negative, all_zero,
-                                 mixed, large_values, best_at_edges,
-                                 random_stress).
-complexity         15     15/15  O(n) confirmed (required O(n)).
-memory_safety      10     10/10  No memory or undefined-behaviour errors on 20
-                                 inputs.
-readability        10    8.0/10  8/10 -- Some function names could be more
-                                 descriptive (line 7); Variable `run_sum` is
-                                 not immediately clear without context (line
-                                 10)
-originality         5       0/5  FLAGGED for review: highly similar to
-                                 submissions/s06_copy.c (classmate, 1.00).
-safe_io             5       5/5  All 3 code rules satisfied.
+Metric         Weight     Score  Status        Verdict
+correctness        25     25/25  OK            All 10 tests pass.
+syntax              5       5/5  OK            No compiler warnings.
+structure           5       5/5  OK            3 function(s), all within
+                                               complexity 8 and length 40; no
+                                               static-analysis findings.
+modularity          5       5/5  OK            3 functions; main() delegates
+                                               the work (29% of the code).
+logical            15     15/15  OK            Handles every corner-case
+                                               family tested (single_element,
+                                               all_negative, all_zero, mixed,
+                                               large_values, best_at_edges,
+                                               random_stress).
+complexity         15     15/15  OK            O(n) confirmed (required O(n)).
+memory_safety      10     10/10  OK            No memory or undefined-
+                                               behaviour errors on 20 inputs.
+readability        10    8.0/10  OK            8/10 -- Some function names
+                                               could be more descriptive (line
+                                               7); Variable `run_sum` is not
+                                               immediately clear without
+                                               context (line 10)
+originality         5       0/5  OK            FLAGGED for review: highly
+                                               similar to
+                                               submissions/s06_copy.c
+                                               (classmate, 1.00).
+safe_io             5       5/5  OK            All 3 code rules satisfied.
 
 --- Flags ---
 - [suspected_plagiarism] 1.00 similar to submissions/s06_copy.c (classmate);
-  shared lines 8, 10-11, 14-16, 18, 20-21, 23-25, 27, 29, 32, 36-37. Needs
-  human review.
+  32 shared fingerprints, shared lines 8, 10-11, 14-16, 18, 20-21, 23-25, 27,
+  29, 32, 37. Needs human review.
 
 --- Suggestions to raise the grade (biggest gains first) ---
 - This code closely matches another submission or a known source and will be
@@ -38,6 +43,21 @@ safe_io             5       5/5  All 3 code rules satisfied.
 - Add a comment explaining what `run_sum` represents at its declaration
   [readability]
 - Break down the main loop into smaller, more focused functions [readability]
+
+--- Analyzer findings ---
+  - correctness: 10/10 tests passed
+  - syntax: 0 warning(s), 0 error(s) with -Wall -Wextra -std=c11 -O2
+  - modularity: 3 function(s) (expected at least 2)
+  - logical: corner cases: single_element 3/3, all_negative 3/3, all_zero 1/1,
+    mixed 3/3, large_values 2/2, best_at_edges 2/2, random_stress 40/40
+  - complexity: estimated O(n), required O(n) (instructions: n=500: 653,616,
+    n=1000: 1,206,699, n=2000: 2,314,593, n=4000: 4,532,141, n=8000:
+    8,963,891)
+  - memory_safety: 20 input(s) run under -fsanitize=address,undefined; 0
+    issue(s)
+  - originality: FLAGGED: 32 distinctive fingerprints (minimum 8), compared
+    against 9 file(s); closest submissions/s06_copy.c at 1.00 sharing 32
+    fingerprints
 
 --- Usefulness & limitations of this evaluation ---
 Useful for:
@@ -104,7 +124,7 @@ Limits of this report:
      (comment ratio, single-letter names), and spot-check a sample of scores
      by hand.
 
-Report fingerprint: sha256:dbe7f8749d287216b0526628b6f2c33c173bf0d4f079dc5ecd9f136597eadff1
+Report fingerprint: sha256:2eecb3e32c65fd8db4cdb628d7e0f00c88e69c93507d5df4ed1b52a84282d9ce
 Rules: sha256:77de558f313faf2c...  Assets: sha256:16472fe8ede8495a...
-Tools: platform Linux-aarch64, python 3.12.3, valgrind 3.22.0, cppcheck 2.13.0, lizard 1.17.10
+Tools: cppcheck 2.13.0, lizard 1.17.10, platform Linux-aarch64, python 3.12.3, valgrind 3.22.0
 Compiler: gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0

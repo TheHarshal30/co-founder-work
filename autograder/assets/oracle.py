@@ -5,19 +5,27 @@ Trust order (the submission is never on this list -- it is what is being graded)
 1. outputs the instructor wrote (``tests/*.out``, ``"expected"`` in
    edge_cases.json, ``sample_output`` / ``asset_generation.examples``);
 2. the instructor's reference solution;
-3. only if the rules opt in (``"oracle": "llm_consensus"``): LLM-written
-   programs, accepted only if
+3. otherwise (the default, ``"oracle": "auto"``; ``"none"`` turns it off):
+   independent LLM-written programs, used only if
    * they pass a static screen (standard headers only; no process, file or
      network calls; no inline assembly),
    * they compile and run under the same sandbox as student code,
-   * each one reproduces EVERY instructor example output (at least
-     ``min_examples`` of them; the examples are never shown back to the model
-     on failure, so they stay an independent check), and
-   * at least two *different* programs, written in different styles (brute
-     force vs. efficient), agree on every validation input.
-   Any disagreement rejects the oracle entirely: no "majority vote" outputs.
+   * each one reproduces EVERY instructor example output (the held-out ones
+     are never shown to the model, not even on failure, so they stay an
+     independent check), and does not crash on any valid input, and
+   * enough *different* programs, written in different styles (brute force
+     vs. efficient vs. careful), remain: ``min_agreeing`` when instructor
+     examples anchor them, ALL requested candidates when there is no example
+     at all (pure consensus, reported as such).
 
-If none of these exists, correctness is reported as not performed.
+   An input gets an expected output only if every remaining candidate prints
+   the same thing -- no majority vote. If they agree on every validation input
+   the oracle becomes the generated reference solution (``full``); if they
+   disagree anywhere, only the agreed inputs are used and no program is
+   trusted for unseen inputs (``partial``).
+
+If none of these exists, correctness is reported as not performed, with the
+reason.
 """
 
 from __future__ import annotations
@@ -127,14 +135,20 @@ def compile_problems(runner: CandidateRunner, code: str, label: str) -> List[str
 
 @dataclass
 class OracleVerdict:
-    accepted: Optional[Candidate]
+    accepted: Optional[Candidate]  # the generated reference (full consensus only)
     candidates: List[Candidate]
     expected: Dict[str, str]  # validation input -> agreed output
     reason: str
+    mode: str = "rejected"  # full | partial | rejected
+    disagreements: Dict[str, Dict[str, str]] = field(default_factory=dict)  # input -> label -> output
+
+
+def _clip(text: str, n: int = 60) -> str:
+    return repr(text if len(text) <= n else text[:n] + "...")
 
 
 def select_oracle(runner: CandidateRunner, codes: List[Tuple[str, str]], examples: List[Tuple[str, str]],
-                  validation_inputs: List[str], compare: str = "trim", min_examples: int = 2,
+                  validation_inputs: List[str], compare: str = "trim", min_examples: int = 0,
                   min_agreeing: int = 2) -> OracleVerdict:
     """Apply the acceptance rules in the module docstring to candidate programs."""
     cands = []
@@ -149,7 +163,7 @@ def select_oracle(runner: CandidateRunner, codes: List[Tuple[str, str]], example
         for c in cands:
             c.problems.append("not enough instructor examples to validate against")
         return OracleVerdict(None, cands, {}, f"only {len(examples)} instructor example(s) with outputs; "
-                                              f"an LLM oracle needs at least {min_examples}")
+                                              f"the rules require at least {min_examples} to trust an LLM oracle")
     for c in cands:
         if c.ok:
             runner.compile(c)
@@ -158,27 +172,46 @@ def select_oracle(runner: CandidateRunner, codes: List[Tuple[str, str]], example
         for i, (stdin, want) in enumerate(examples, 1):
             got = runner.run(c, stdin)
             if got is None or not outputs_match(want, got, compare):
-                c.problems.append(f"wrong or failed on instructor example {i}")
+                shown = "crashed or timed out" if got is None else f"printed {_clip(got.strip(), 40)}"
+                c.problems.append(f"wrong on instructor example {i}: expected {_clip(want.strip(), 40)}, {shown}")
                 break
     good = [c for c in cands if c.ok]
+    anchor = f"reproduced all {len(examples)} instructor example(s)" if examples else \
+        "passed the screen and compiled (no instructor example output exists to anchor them)"
     if len(good) < min_agreeing:
-        return OracleVerdict(None, cands, {}, f"{len(good)} candidate(s) reproduced every instructor example; "
+        return OracleVerdict(None, cands, {}, f"{len(good)} candidate(s) {anchor}; "
                                               f"{min_agreeing} independent ones are required")
-    for stdin in validation_inputs:
-        outs = []
-        for c in good:
+    for c in good:  # a crash on a VALID input disqualifies that candidate, not the whole oracle
+        for stdin in validation_inputs:
             out = runner.run(c, stdin)
             if out is None:
-                c.problems.append(f"crashed or timed out on a valid input {stdin[:60]!r}")
-                return OracleVerdict(None, cands, {}, f"candidate {c.label} failed on a valid input")
+                c.problems.append(f"crashed or timed out on a valid input {_clip(stdin)}")
+                break
             c.outputs[stdin] = out
-            outs.append(out)
-        if not all(outputs_match(outs[0], o, compare) for o in outs[1:]):
-            return OracleVerdict(None, cands, {}, f"candidates disagree on input {stdin[:60]!r}; "
-                                                  "no trustworthy expected output")
-    # The efficient candidate (if it validated) is the oracle used at grade time.
-    chosen = next((c for c in good if c.label == "efficient"), good[0])
-    expected = {s: chosen.outputs[s] for s in validation_inputs}
-    return OracleVerdict(chosen, cands, expected,
-                         f"{len(good)} independent programs reproduced {len(examples)} instructor examples "
-                         f"and agreed on {len(validation_inputs)} validation inputs")
+    good = [c for c in good if c.ok]
+    if len(good) < min_agreeing:
+        return OracleVerdict(None, cands, {}, f"only {len(good)} candidate(s) {anchor} and ran every valid "
+                                              f"input; {min_agreeing} are required")
+    expected: Dict[str, str] = {}
+    disagreements: Dict[str, Dict[str, str]] = {}
+    for stdin in validation_inputs:
+        outs = [c.outputs[stdin] for c in good]
+        if all(outputs_match(outs[0], o, compare) for o in outs[1:]):
+            expected[stdin] = outs[0]
+        else:
+            disagreements[stdin] = {c.label: c.outputs[stdin] for c in good}
+    names = ", ".join(c.label for c in good)
+    if not disagreements:
+        # The efficient candidate (if it validated) is the reference used at grade time.
+        chosen = next((c for c in good if c.label == "efficient"), good[0])
+        return OracleVerdict(chosen, cands, expected,
+                             f"{len(good)} independent programs ({names}) {anchor} and agreed on all "
+                             f"{len(validation_inputs)} validation inputs", "full")
+    first = next(iter(disagreements))
+    sample = "; ".join(f"{lb} printed {_clip(o.strip(), 30)}" for lb, o in disagreements[first].items())
+    reason = (f"{len(good)} programs ({names}) {anchor}, but disagree on {len(disagreements)} of "
+              f"{len(validation_inputs)} validation inputs (e.g. {_clip(first)}: {sample}); only the "
+              f"{len(expected)} agreed inputs have expected outputs and no program is trusted as a reference")
+    if not expected:
+        return OracleVerdict(None, cands, {}, reason, "rejected", disagreements)
+    return OracleVerdict(None, cands, expected, reason, "partial", disagreements)

@@ -176,37 +176,54 @@
       "status": "ok",
       "score": 1.0,
       "contribution": 10.0,
-      "feedback": "Max similarity 0.18 (threshold 0.85); not flagged.",
+      "feedback": "Not judged: only 7 distinctive fingerprints (minimum 8); the code is almost all the shape every solution shares. Closest: known/llm_qwen2.5-7b_1.c (0.00).",
       "evidence": {
         "method": "winnowing k=5 w=4, Dice overlap",
         "threshold": 0.85,
-        "fingerprints": 10,
+        "min_fingerprints": 8,
+        "min_shared_fingerprints": 8,
+        "fingerprints": 7,
         "ignored_reference_fingerprints": 13,
+        "ignored_boilerplate_fingerprints": 3,
         "compared_against": 10,
         "top_matches": [
-          {
-            "file": "known/llm_qwen2.5-7b_2.c",
-            "kind": "known",
-            "source": "LLM-generated (qwen2.5:7b)",
-            "similarity": 0.182,
-            "shared_lines": "8-9"
-          },
-          {
-            "file": "submissions/add_llm.c",
-            "kind": "submission",
-            "source": "classmate",
-            "similarity": 0.182,
-            "shared_lines": "8-9"
-          },
           {
             "file": "known/llm_qwen2.5-7b_1.c",
             "kind": "known",
             "source": "LLM-generated (qwen2.5:7b)",
-            "similarity": 0.125,
-            "shared_lines": "8"
+            "similarity": 0.0,
+            "raw_similarity": 0.125,
+            "fingerprints": 0,
+            "shared_fingerprints": 0,
+            "shared_lines": "",
+            "verdict": "below_threshold"
+          },
+          {
+            "file": "known/llm_qwen2.5-7b_2.c",
+            "kind": "known",
+            "source": "LLM-generated (qwen2.5:7b)",
+            "similarity": 0.0,
+            "raw_similarity": 0.182,
+            "fingerprints": 7,
+            "shared_fingerprints": 0,
+            "shared_lines": "",
+            "verdict": "below_threshold"
+          },
+          {
+            "file": "known/llm_qwen2.5-7b_3.c",
+            "kind": "known",
+            "source": "LLM-generated (qwen2.5:7b)",
+            "similarity": 0.0,
+            "raw_similarity": 0.0,
+            "fingerprints": 23,
+            "shared_fingerprints": 0,
+            "shared_lines": "",
+            "verdict": "below_threshold"
           }
         ],
-        "max_similarity": 0.182
+        "max_similarity": 0.0,
+        "verdict": "insufficient_evidence",
+        "note": "too little distinctive code to judge originality"
       }
     }
   ],
@@ -293,18 +310,18 @@
       }
     ]
   },
-  "fingerprint": "sha256:b6754c4b461f0ec50e7041a2787954304e35c3c8baa0488623736962c3b57d48",
+  "fingerprint": "sha256:bbafbda22b074bcdc56f861dded637d2b77f40bbe070b17511ba0152f87376df",
   "meta": {
     "report_version": 1,
-    "generated_at": "2026-10-19T13:25:58Z",
-    "elapsed_s": 2.1,
+    "generated_at": "2026-11-01T13:16:06Z",
+    "elapsed_s": 2.08,
     "timings_s": {
-      "first_pass": 2.086,
+      "first_pass": 2.038,
       "modularity": 0.0,
-      "readability": 0.001,
-      "structure": 0.005,
-      "originality": 0.005,
-      "syntax": 0.012
+      "readability": 0.004,
+      "structure": 0.014,
+      "originality": 0.015,
+      "syntax": 0.034
     },
     "llm_cache": {
       "hits": 1,

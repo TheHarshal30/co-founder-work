@@ -9,8 +9,11 @@ the same functions the CLI uses:
     POST /api/grade             grade one submission (explicit or generated assets)
     GET  /api/grades            past grades (SQLite)
     GET  /api/grades/<id>       one stored report (+ its text rendering)
+    GET  /api/grades/<id>/report.txt   the text report as a download
     GET  /api/bundles           generated asset bundles
-    GET  /api/bundles/<key>     one bundle: every asset (incl. rejected) + LLM events
+    GET  /api/bundles/<key>     one bundle: every asset (incl. rejected), where
+                                its files are stored, LLM events
+    GET  /api/llm               is the asset-generation LLM reachable?
 
 It binds to 127.0.0.1 by default: the grader compiles and runs uploaded C code
 (inside the usual sandbox limits), so it is meant for one instructor's machine,
@@ -31,10 +34,11 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from ..analyzers import REGISTRY
 from ..assets import AssetStore, prepare_assets
+from ..assets.prepare import Config, llm_overrides
 from ..coordinator import grade
 from ..llm import LLMClient
 from ..report import render_text
@@ -91,11 +95,29 @@ def check_uploaded_rules(raw: Any) -> List[str]:
     return problems
 
 
+def host_path(p: Path) -> str:
+    """Where a file inside the working folder lives on the user's machine.
+    In Docker the folder is mounted at /work; grade.sh passes the host side as
+    AUTOGRADER_HOST_WORKDIR (e.g. C:/Users/me/course or /home/me/course)."""
+    p = Path(p).resolve()
+    host = os.environ.get("AUTOGRADER_HOST_WORKDIR", "").strip()
+    if not host:
+        return str(p)
+    try:
+        rel = p.relative_to(Path.cwd().resolve())
+    except ValueError:
+        return str(p)
+    sep = "\\" if "\\" in host else "/"
+    return host.rstrip("/\\") + sep + sep.join(rel.parts)
+
+
 class App:
-    def __init__(self, root: Path, cache_root: Path, offline_default: bool = False):
+    def __init__(self, root: Path, cache_root: Path, offline_default: bool = False,
+                 llm_defaults: Optional[Dict[str, str]] = None):
         self.root = root.resolve()
         self.cache_root = cache_root
         self.offline_default = offline_default
+        self.llm_defaults = llm_overrides(llm_defaults)
         self.store = AssetStore(cache_root / "autograder.sqlite3")
         self._llms: Dict[bool, LLMClient] = {}
         self._lock = threading.Lock()
@@ -123,6 +145,7 @@ class App:
         rules_in = body.get("rules") or {}
         generate = bool(body.get("generate_assets"))
         offline = bool(body.get("offline", self.offline_default))
+        overrides = self.overrides(body)
 
         tmp = Path(tempfile.mkdtemp(prefix="ag-web-"))
         try:
@@ -149,7 +172,7 @@ class App:
             llm = self.llm(offline)
             prep = None
             if generate:
-                prep = prepare_assets(rules_path, llm, self.store, self.cache_root)
+                prep = prepare_assets(rules_path, llm, self.store, self.cache_root, submission, overrides)
             try:
                 rules = load_rules(rules_path, REGISTRY, prep.overlay if prep else None)
             except RulesError as e:
@@ -157,7 +180,7 @@ class App:
                 raise BadRequest("the rules file is not usable", e.problems + hint)
             report = grade(submission, rules, llm)
             if prep is not None and prep.overlay is not None:
-                report["meta"]["assets"] = {"cache_hit": prep.cache_hit, "bundle_dir": str(prep.bundle_dir)}
+                report["meta"]["assets"] = {"cache_hit": prep.cache_hit, "bundle_dir": host_path(prep.bundle_dir)}
             grade_id = self.store.record_grade(report)
             return {"id": grade_id, "report": report, "text": render_text(report)}
         finally:
@@ -179,6 +202,24 @@ class App:
                     return p
         return None
 
+    def overrides(self, body: Dict[str, Any]) -> Dict[str, str]:
+        out = dict(self.llm_defaults)
+        for key in ("provider", "model"):
+            v = body.get(f"llm_{key}")
+            if isinstance(v, str) and v.strip():
+                if not re.fullmatch(r"[A-Za-z0-9_.:/@+-]{1,100}", v.strip()):
+                    raise BadRequest(f"llm_{key} contains unexpected characters")
+                out[key] = v.strip()
+        return out
+
+    def llm_status(self, query: Dict[str, List[str]]) -> Dict[str, Any]:
+        body = {f"llm_{k}": v[0] for k, v in query.items() if k in ("provider", "model") and v}
+        cfg, problems = Config.from_rules({}, self.overrides(body))
+        if problems:
+            return {"ok": False, "provider": cfg.provider, "model": cfg.model, "error": "; ".join(problems)}
+        offline = query.get("offline", ["0"])[0] in ("1", "true")
+        return self.llm(offline).check(cfg.provider, cfg.model)
+
     # -- reading -------------------------------------------------------------
     def grade_detail(self, grade_id: int) -> Dict[str, Any]:
         row = self.store.grade(grade_id)
@@ -187,17 +228,41 @@ class App:
         return {"id": row["id"], "created_at": row["created_at"], "report": row["report"],
                 "text": render_text(row["report"])}
 
+    def grade_text(self, grade_id: int) -> Tuple[str, str]:
+        """(filename, text report) for a download."""
+        row = self.store.grade(grade_id)
+        if row is None:
+            raise LookupError(f"no grade {grade_id}")
+        stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", Path(row["report"]["submission"]).stem) or "report"
+        return f"{stem}_grade{grade_id}_report.txt", render_text(row["report"])
+
     def bundle_detail(self, key: str) -> Dict[str, Any]:
         b = self.store.get_bundle(key)
         if b is None:
             raise LookupError(f"no bundle {key}")
-        assets = [{"kind": a.kind, "name": a.name, "status": a.status, "origin": a.origin, "detail": a.detail,
-                   "path": a.path, "content": (a.content or "")[:4000],
-                   "truncated": len(a.content or "") > 4000} for a in self.store.assets(key)]
-        return {"bundle_key": key, "problem": b["problem"], "model": b["model_name"], "provider": b["model_provider"],
+        manifest = b["manifest"]
+        storage = self.cache_root / manifest["storage"] if manifest.get("storage") else None
+        assets = []
+        for a in self.store.assets(key):
+            content = a.content or ""
+            on_disk = storage is not None and a.path is not None and (storage / a.path).is_file()
+            assets.append({
+                "kind": a.kind, "name": a.name, "status": a.status, "origin": a.origin, "detail": a.detail,
+                "group": "instructor" if a.origin.startswith("instructor") else "generated",
+                "path": a.path, "file": host_path(storage / a.path) if on_disk else None,
+                "content": content[:20000], "truncated": len(content) > 20000, "size": len(content)})
+        files = {}
+        if storage is not None:
+            for name in ("manifest.json", "validation/report.json"):
+                if (storage / name).is_file():
+                    files[name] = host_path(storage / name)
+        return {"bundle_key": key, "generation_id": manifest.get("generation_id", key[:16]),
+                "problem": b["problem"], "model": b["model_name"], "provider": b["model_provider"],
                 "model_digest": b["model_digest"], "created_at": b["created_at"],
                 "generator_version": b["generator_version"], "dependencies": b["dependencies"],
-                "manifest": {k: v for k, v in b["manifest"].items() if k != "params"},
+                "storage_dir": host_path(storage) if storage is not None and storage.is_dir() else None,
+                "summary_files": files,
+                "manifest": {k: v for k, v in manifest.items() if k != "params"},
                 "assets": assets, "events": self.store.events(key)}
 
 
@@ -220,6 +285,17 @@ def make_handler(app: App):
         def _json(self, status: int, obj: Any) -> None:
             self._send(status, json.dumps(obj).encode(), "application/json")
 
+        def _download(self, filename: str, text: str) -> None:
+            body = text.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(body)
+
         def _route(self) -> Tuple[str, List[str]]:
             path = urlparse(self.path).path
             return path, [p for p in path.split("/") if p]
@@ -232,12 +308,18 @@ def make_handler(app: App):
                 if parts[:1] != ["api"]:
                     return self._json(404, {"error": "not found"})
                 if parts == ["api", "problems"]:
+                    cfg, _ = Config.from_rules({}, app.llm_defaults)
                     return self._json(200, {"root": str(app.root), "rules": find_rules_files(app.root),
-                                            "offline_default": app.offline_default})
+                                            "offline_default": app.offline_default,
+                                            "llm": {"provider": cfg.provider, "model": cfg.model}})
                 if parts == ["api", "grades"]:
                     return self._json(200, {"grades": list(reversed(app.store.grades()))})
                 if len(parts) == 3 and parts[1] == "grades" and parts[2].isdigit():
                     return self._json(200, app.grade_detail(int(parts[2])))
+                if len(parts) == 4 and parts[1] == "grades" and parts[2].isdigit() and parts[3] == "report.txt":
+                    return self._download(*app.grade_text(int(parts[2])))
+                if parts == ["api", "llm"]:
+                    return self._json(200, app.llm_status(parse_qs(urlparse(self.path).query)))
                 if parts == ["api", "bundles"]:
                     return self._json(200, {"bundles": app.store.bundles()})
                 if len(parts) == 3 and parts[1] == "bundles" and re.fullmatch(r"[0-9a-f]{64}", parts[2]):
@@ -245,6 +327,8 @@ def make_handler(app: App):
                 return self._json(404, {"error": "not found"})
             except LookupError as e:
                 return self._json(404, {"error": str(e)})
+            except BadRequest as e:
+                return self._json(400, {"error": str(e)})
 
         def do_POST(self):
             path, _ = self._route()
@@ -274,8 +358,9 @@ def make_server(app: App, host: str = "127.0.0.1", port: int = 8000) -> Threadin
     return server
 
 
-def serve(root: Path, cache_root: Path, host: str, port: int, offline: bool) -> None:
-    app = App(root, cache_root, offline)
+def serve(root: Path, cache_root: Path, host: str, port: int, offline: bool,
+          llm_defaults: Optional[Dict[str, str]] = None) -> None:
+    app = App(root, cache_root, offline, llm_defaults)
     server = make_server(app, host, port)
     shown = "localhost" if host in ("127.0.0.1", "0.0.0.0") else host
     url = os.environ.get("AUTOGRADER_UI_URL") or f"http://{shown}:{server.server_address[1]}"  # Docker: host port
