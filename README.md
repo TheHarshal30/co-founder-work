@@ -52,6 +52,7 @@ analysis are in [`docs/DESIGN.md`](docs/DESIGN.md).
 12. [Tests](#12-tests)
 13. [Troubleshooting](#13-troubleshooting)
 14. [Repository layout and further reading](#14-repository-layout-and-further-reading)
+15. [Changelog](#15-changelog)
 
 ---
 
@@ -724,3 +725,62 @@ docs/DESIGN.md      design, method defence, usefulness & limitations
 | `autograder/assets/prepare.py` | The generated-assets pipeline, top to bottom |
 | `autograder/assets/oracle.py` | Exactly what counts as a trusted expected output |
 | `autograder/sandbox.py` | The limits untrusted code runs under |
+
+---
+
+## 15. Changelog
+
+### 2026-11-01: automatic asset generation from a bare `rules.json` (commit `cdbd20d`)
+
+Upload `submission.c` + `rules.json`, tick *Generate missing assets*, grade.
+No `asset_generation` block, statement, tests, reference, generator or known
+solutions are needed any more.
+
+**Added**
+
+| What | Where | Details |
+|---|---|---|
+| Problem inference | `assets/llmgen.py` | A problem brief built from the title (`add_two_integers` -> "add two integers"), statement/description if any, limits, required complexity, case-family names and the sample with its output. Section 7 |
+| Oracle on by default | `assets/oracle.py`, `assets/prepare.py` | `"oracle": "auto"`: 3 independent programs (brute force, efficient, careful); held-out instructor examples; per-input unanimity (no majority vote); a crashing candidate is dropped, not the whole oracle; full consensus gives `reference/reference.c` |
+| Persistent generated assets | `.autograder-cache/generated/<problem>/<generation_id>/` | One folder per kind (`spec/`, `generators/`, `tests/`, `edge_cases/`, `inputs/`, `oracles/`, `reference/`, `known/`) plus `manifest.json` and `validation/report.json`; reused until the problem or generation settings change |
+| Assets tab sections | web UI | Instructor-provided / Generated / Validated and used for grading, each file with path on your machine, origin, validation result and content |
+| **Download TXT Report** | web UI, `GET /api/grades/<id>/report.txt` | Next to Download JSON |
+| Richer text report | `report.py` | Status column, analyzer findings, every not-performed/skipped reason, oracle verdict per candidate, storage location |
+| LLM connectivity | `llm.py`, `cli.py`, UI | Docker defaults to `host.docker.internal:11434`; clear errors for unreachable Ollama and unpulled models; `autograder llm-check`; `--llm-provider`/`--llm-model`, `AUTOGRADER_LLM_PROVIDER`/`_MODEL`, provider/model fields + *Check* button in the UI; `GET /api/llm` |
+| Windows | `grade.sh`, `grade.ps1` | Git Bash path handling (`MSYS_NO_PATHCONV`, `pwd -W`); PowerShell wrapper |
+| Example | `examples/bare_workflow/` | A bare rules file: title, limits, one sample, metrics |
+| Tests | `tests/test_autogen.py`, `tests/test_web.py` | 77 -> 101 tests |
+
+**Fixed**
+
+| Problem | Root cause | Fix |
+|---|---|---|
+| `edge_case_runner` always NOT PERFORMED with generated assets | Oracle off by default, and input-format inference required a statement or `description` | Inference from the brief; oracle on by default; precise reasons when it still cannot run |
+| Complexity not performed on bare rules | Same input-format dependency | Generator built from the inferred spec; out-of-range sizes dropped and reported |
+| Complexity analyzer crashed for sizes ~512-999 | The O(2^n) least-squares fit overflowed a float | Classes whose values exceed 1e150 are skipped |
+| Two honest `a+b` programs FLAGGED for plagiarism | Normalisation erases names, so every small program has ~10 identical fingerprints; the 8-fingerprint minimum only helped when a reference existed | Common I/O skeletons are ignored like the reference; FLAGGED needs 8 distinctive fingerprints on both sides and 8 shared, otherwise **SUSPECT** (`similarity_suspect`, no penalty). Fingerprint algorithm unchanged |
+| LLM status blank in upload mode | The box was ticked in code, so no change event fired | Status is checked automatically |
+| Report fingerprint depended on the cache location | Originality evidence included the cache path | Generated known solutions are labelled `known/<file>` |
+| Text report differed between a fresh and a stored report | Tool versions printed in dict order | Sorted |
+
+**Behaviour changes to be aware of**
+
+* `add_llm.c` in the samples goes from FLAGGED (69.8) to SUSPECT (79.8): a
+  verbatim LLM answer with only 7 distinctive fingerprints. Every other sample
+  grade is unchanged (`sample_outputs/` regenerated).
+* All report fingerprints change (originality evidence has new fields), so
+  grades from before this release are not "identical" to new ones in History.
+* Set `"oracle": "none"` in `asset_generation` to get the previous behaviour.
+* When the instructor gives no input at all, the submission's `scanf` lines are
+  used as an input-format hint (flagged `input_format_from_submission`).
+* Verified end to end with a scripted Ollama-protocol stand-in, not a real
+  model; asset quality with `qwen2.5:7b` itself is untested.
+
+### Earlier
+
+| Commit | Change |
+|---|---|
+| `8a82dc5` | README rewrite: setup guide, command reference, troubleshooting |
+| `f3268d2` | Local web UI: grade, inspect generated assets, grade history |
+| `da78814` | `--generate-assets`: grade from `submission.c` + `rules.json` |
+| `4b3cd55` | AutoGrader: rule-driven, reproducible grading of C programs |
